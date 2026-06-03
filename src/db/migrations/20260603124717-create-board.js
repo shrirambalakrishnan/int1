@@ -15,7 +15,7 @@ module.exports = {
       },
       integrationBoardId: {
         type: Sequelize.INTEGER,
-        allowNull: false,
+        allowNull: true,
       },
       integrationId: {
         type: Sequelize.INTEGER,
@@ -23,10 +23,11 @@ module.exports = {
       },
       createdByIntegrationUserId: {
         type: Sequelize.INTEGER,
-        allowNull: false,
+        allowNull: true,
       },
       integrationUpdatedAt: {
         type: Sequelize.DATE,
+        allowNull: true,
       },
       createdAt: {
         allowNull: false,

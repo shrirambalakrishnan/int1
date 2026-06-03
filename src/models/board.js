@@ -19,7 +19,7 @@ module.exports = (sequelize, DataTypes) => {
       },
       integrationBoardId: {
         type: DataTypes.NUMBER,
-        allowNull: false,
+        allowNull: true,
       },
       integrationId: {
         type: DataTypes.NUMBER,
@@ -27,11 +27,11 @@ module.exports = (sequelize, DataTypes) => {
       },
       createdByIntegrationUserId: {
         type: DataTypes.NUMBER,
-        allowNull: false,
+        allowNull: true,
       },
       integrationUpdatedAt: {
         type: DataTypes.DATE,
-        allowNull: false,
+        allowNull: true,
       },
     },
     {
