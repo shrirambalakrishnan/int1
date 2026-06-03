@@ -1,0 +1,63 @@
+'use strict';
+const { Model } = require('sequelize');
+module.exports = (sequelize, DataTypes) => {
+  class Task extends Model {
+    /**
+     * Helper method for defining associations.
+     * This method is not a part of Sequelize lifecycle.
+     * The `models/index` file will call this method automatically.
+     */
+    static associate(models) {
+      // define association here
+    }
+  }
+  Task.init(
+    {
+      title: {
+        type: DataTypes.STRING,
+        allowNull: false,
+        unique: true,
+      },
+      description: {
+        type: DataTypes.STRING,
+        allowNull: true,
+      },
+      boardId: {
+        type: DataTypes.NUMBER,
+        allowNull: false,
+      },
+      integrationTaskId: {
+        type: DataTypes.NUMBER,
+        allowNull: true,
+      },
+      createdByIntegrationUserId: {
+        type: DataTypes.NUMBER,
+        allowNull: true,
+      },
+      integrationUserIdAssigned: {
+        type: DataTypes.NUMBER,
+        allowNull: true,
+      },
+      integrationUpdatedAt: {
+        type: DataTypes.DATE,
+        allowNull: true,
+      },
+      title: {
+        type: DataTypes.STRING,
+        allowNull: false,
+      },
+    },
+    {
+      sequelize,
+      modelName: 'Task',
+      indexes: [
+        {
+          unique: true,
+          fields: ['boardId', 'integrationTaskId'],
+          name: 'tasks_board_id_integration_task_id_unique',
+        },
+      ],
+    }
+  );
+  return Task;
+};
