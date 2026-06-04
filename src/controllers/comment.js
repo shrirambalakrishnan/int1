@@ -1,0 +1,66 @@
+'use strict';
+
+const { Comment, Task } = require('../models');
+const { sendError } = require('../utils/errors');
+
+async function list(req, res, next) {
+  try {
+    const task = await Task.findByPk(req.params.taskId);
+    if (!task) return res.status(404).json({ error: 'Task not found' });
+    const comments = await Comment.findAll({ where: { taskId: req.params.taskId } });
+    res.json({ data: comments });
+  } catch (err) {
+    sendError(res, next, err);
+  }
+}
+
+async function get(req, res, next) {
+  try {
+    const comment = await Comment.findOne({
+      where: { id: req.params.id, taskId: req.params.taskId },
+    });
+    if (!comment) return res.status(404).json({ error: 'Not found' });
+    res.json({ data: comment });
+  } catch (err) {
+    sendError(res, next, err);
+  }
+}
+
+async function create(req, res, next) {
+  try {
+    const task = await Task.findByPk(req.params.taskId);
+    if (!task) return res.status(404).json({ error: 'Task not found' });
+    const comment = await Comment.create({ ...req.body, taskId: req.params.taskId });
+    res.status(201).json({ data: comment });
+  } catch (err) {
+    sendError(res, next, err);
+  }
+}
+
+async function update(req, res, next) {
+  try {
+    const comment = await Comment.findOne({
+      where: { id: req.params.id, taskId: req.params.taskId },
+    });
+    if (!comment) return res.status(404).json({ error: 'Not found' });
+    await comment.update(req.body);
+    res.json({ data: comment });
+  } catch (err) {
+    sendError(res, next, err);
+  }
+}
+
+async function remove(req, res, next) {
+  try {
+    const comment = await Comment.findOne({
+      where: { id: req.params.id, taskId: req.params.taskId },
+    });
+    if (!comment) return res.status(404).json({ error: 'Not found' });
+    await comment.destroy();
+    res.status(204).send();
+  } catch (err) {
+    sendError(res, next, err);
+  }
+}
+
+module.exports = { list, get, create, update, remove };
