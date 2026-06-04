@@ -1,5 +1,5 @@
 'use strict';
-const { Model } = require('sequelize');
+const { Model, Op } = require('sequelize');
 module.exports = (sequelize, DataTypes) => {
   class IntegrationUser extends Model {
     /**
@@ -8,18 +8,25 @@ module.exports = (sequelize, DataTypes) => {
      * The `models/index` file will call this method automatically.
      */
     static associate(models) {
-      // define association here
+      IntegrationUser.belongsTo(models.Integration, {
+        foreignKey: 'integrationId',
+        as: 'integration',
+      });
+      IntegrationUser.belongsTo(models.LoginUser, {
+        foreignKey: 'loginUserId',
+        as: 'loginUser',
+      });
     }
   }
   IntegrationUser.init(
     {
       integrationId: {
         type: DataTypes.NUMBER,
-        allowNull: false,
+        allowNull: true,
       },
       externalUserId: {
         type: DataTypes.NUMBER,
-        allowNull: false,
+        allowNull: true,
       },
       loginUserId: {
         type: DataTypes.NUMBER,
@@ -30,7 +37,7 @@ module.exports = (sequelize, DataTypes) => {
         allowNull: true,
       },
       integrationUserEmail: {
-        type: DataTypes.NUMBER,
+        type: DataTypes.STRING,
         allowNull: true,
       },
     },
@@ -42,6 +49,12 @@ module.exports = (sequelize, DataTypes) => {
           unique: true,
           fields: ['integrationId', 'externalUserId'],
           name: 'integration_users_integration_id_external_user_id_unique',
+        },
+        {
+          unique: true,
+          fields: ['loginUserId'],
+          name: 'integration_users_login_user_id_unique',
+          where: { loginUserId: { [Op.ne]: null } },
         },
       ],
     }

@@ -16,6 +16,12 @@ module.exports = (sequelize, DataTypes) => {
         onDelete: 'CASCADE',
         hooks: true,
       });
+      Integration.hasMany(models.IntegrationUser, {
+        foreignKey: 'integrationId',
+        as: 'integrationUsers',
+        onDelete: 'CASCADE',
+        hooks: true,
+      });
     }
   }
   Integration.init({
