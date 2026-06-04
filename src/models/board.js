@@ -15,6 +15,8 @@ module.exports = (sequelize, DataTypes) => {
       Board.hasMany(models.Task, {
         foreignKey: 'boardId',
         as: 'tasks',
+        onDelete: 'CASCADE',
+        hooks: true,
       });
     }
   }
