@@ -8,7 +8,16 @@ module.exports = (sequelize, DataTypes) => {
      * The `models/index` file will call this method automatically.
      */
     static associate(models) {
-      // define association here
+      Board.belongsTo(models.Integration, {
+        foreignKey: 'integrationId',
+        as: 'integration',
+      });
+      Board.hasMany(models.Task, {
+        foreignKey: 'boardId',
+        as: 'tasks',
+        onDelete: 'CASCADE',
+        hooks: true,
+      });
     }
   }
   Board.init(

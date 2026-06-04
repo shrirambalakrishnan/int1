@@ -10,7 +10,18 @@ module.exports = (sequelize, DataTypes) => {
      * The `models/index` file will call this method automatically.
      */
     static associate(models) {
-      // define association here
+      Integration.hasMany(models.Board, {
+        foreignKey: 'integrationId',
+        as: 'boards',
+        onDelete: 'CASCADE',
+        hooks: true,
+      });
+      Integration.hasMany(models.IntegrationUser, {
+        foreignKey: 'integrationId',
+        as: 'integrationUsers',
+        onDelete: 'CASCADE',
+        hooks: true,
+      });
     }
   }
   Integration.init({
