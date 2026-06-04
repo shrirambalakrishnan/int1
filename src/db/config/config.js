@@ -1,3 +1,5 @@
+'use strict';
+
 require('dotenv').config();
 
 const common = {
@@ -9,8 +11,8 @@ const common = {
   dialect: 'postgres',
 };
 
-module.exports = { 
-  development: common, 
-  test: common, 
-  production: common
+module.exports = {
+  development: common,
+  test: common,
+  production: common,
 };
