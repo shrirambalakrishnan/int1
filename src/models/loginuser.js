@@ -1,7 +1,5 @@
 'use strict';
-const {
-  Model
-} = require('sequelize');
+const { Model } = require('sequelize');
 module.exports = (sequelize, DataTypes) => {
   class LoginUser extends Model {
     /**
@@ -10,22 +8,30 @@ module.exports = (sequelize, DataTypes) => {
      * The `models/index` file will call this method automatically.
      */
     static associate(models) {
-      // define association here
+      LoginUser.hasMany(models.IntegrationUser, {
+        foreignKey: 'loginUserId',
+        as: 'integrationUsers',
+        onDelete: 'CASCADE',
+        hooks: true,
+      });
     }
   }
-  LoginUser.init({
-    name: {
-      type: DataTypes.STRING, 
-      allowNull: false
+  LoginUser.init(
+    {
+      name: {
+        type: DataTypes.STRING,
+        allowNull: false,
+      },
+      email: {
+        type: DataTypes.STRING,
+        allowNull: false,
+        unique: true,
+      },
     },
-    email: {
-      type: DataTypes.STRING, 
-      allowNull: false, 
-      unique: true
-    },
-  }, {
-    sequelize,
-    modelName: 'LoginUser',
-  });
+    {
+      sequelize,
+      modelName: 'LoginUser',
+    }
+  );
   return LoginUser;
 };
