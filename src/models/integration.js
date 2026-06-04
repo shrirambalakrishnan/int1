@@ -13,6 +13,8 @@ module.exports = (sequelize, DataTypes) => {
       Integration.hasMany(models.Board, {
         foreignKey: 'integrationId',
         as: 'boards',
+        onDelete: 'CASCADE',
+        hooks: true,
       });
     }
   }
