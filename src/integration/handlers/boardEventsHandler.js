@@ -11,10 +11,12 @@ const { selectIntegration } = require('../selectIntegration');
  */
 class BoardEventsHandler {
   async onBoardCreated(event) {
-    const board = await Board.findByPk(event.boardId);
+    const { boardId, integrationId } = event.payload;
+
+    const board = await Board.findByPk(boardId);
     if (!board) {
       console.warn(
-        `[BoardEventsHandler] BoardCreated for missing board ${event.boardId}; skipping`
+        `[BoardEventsHandler] BoardCreated for missing board ${boardId}; skipping`
       );
       return;
     }
@@ -30,7 +32,7 @@ class BoardEventsHandler {
       return;
     }
 
-    const client = selectIntegration(event.integrationId);
+    const client = selectIntegration(integrationId);
     const externalId = await client.createBoard(board);
 
     await board.update({

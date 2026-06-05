@@ -11,12 +11,18 @@ const handler = new BoardEventsHandler();
 
 afterEach(() => mock.restoreAll());
 
+const eventFor = (boardId, integrationId = 2) => ({
+  type: 'BoardCreated',
+  occurredAt: new Date().toISOString(),
+  payload: { boardId, integrationId },
+});
+
 test('integrates an un-integrated board and persists the external id', async () => {
   const board = { id: 1, name: 'Test', integrationBoardId: null, update: mock.fn() };
   mock.method(Board, 'findByPk', async () => board);
   mock.method(stubClient, 'createBoard', async () => 12345);
 
-  await handler.onBoardCreated({ type: 'BoardCreated', boardId: 1, integrationId: 2 });
+  await handler.onBoardCreated(eventFor(1));
 
   assert.strictEqual(stubClient.createBoard.mock.callCount(), 1);
   assert.strictEqual(board.update.mock.callCount(), 1);
@@ -30,7 +36,7 @@ test('is idempotent: skips a board that is already integrated', async () => {
   mock.method(Board, 'findByPk', async () => board);
   mock.method(stubClient, 'createBoard', async () => 12345);
 
-  await handler.onBoardCreated({ type: 'BoardCreated', boardId: 1, integrationId: 2 });
+  await handler.onBoardCreated(eventFor(1));
 
   assert.strictEqual(stubClient.createBoard.mock.callCount(), 0);
   assert.strictEqual(board.update.mock.callCount(), 0);
@@ -40,7 +46,7 @@ test('skips when the board no longer exists', async () => {
   mock.method(Board, 'findByPk', async () => null);
   mock.method(stubClient, 'createBoard', async () => 12345);
 
-  await handler.onBoardCreated({ type: 'BoardCreated', boardId: 999, integrationId: 2 });
+  await handler.onBoardCreated(eventFor(999));
 
   assert.strictEqual(stubClient.createBoard.mock.callCount(), 0);
 });

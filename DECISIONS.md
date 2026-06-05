@@ -4,6 +4,20 @@ Append-only log of significant design decisions. Newest first. Keep each entry
 brief (Context / Decision / Consequences). Don't edit past entries — to change a
 decision, add a new dated entry that supersedes the old one.
 
+## 2026-06-05 — Validate events against one shared schema at both boundaries
+
+**Context:** Events flow producer → worker; a malformed payload could be emitted or
+received, and per-side copies of the rules would drift.
+
+**Decision:** One schema per event type is the single source of truth, used both to
+build events (producer) and validate them (consumer) — not separate per-side rules.
+Invalid events throw at the worker's entry boundary rather than returning an error
+result (the consumer will nack/DLQ). Domain data is nested under `payload`.
+
+**Consequences:** Bad events are caught at both edges with identical rules; adding an
+event is one schema entry. Trade-offs: the consumer boundary must handle thrown errors
+(DLQ, later); schema validation stays separate from DB constraints.
+
 ## 2026-06-05 — Integration worker: transport-agnostic, simple integrationId selection
 
 **Context:** Starting the outbound integration flow (local change → external system),
