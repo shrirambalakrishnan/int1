@@ -12,7 +12,9 @@
     "emit:board:created": "node scripts/emitBoardCreated.js",
     "emit:board:updated": "node scripts/emitBoardUpdated.js",
     "emit:task:created": "node scripts/emitTaskCreated.js",
-    "emit:task:updated": "node scripts/emitTaskUpdated.js"
+    "emit:task:updated": "node scripts/emitTaskUpdated.js",
+    "emit:comment:created": "node scripts/emitCommentCreated.js",
+    "emit:comment:updated": "node scripts/emitCommentUpdated.js"
   },
   "engines": {
     "node": ">=26.2.0",

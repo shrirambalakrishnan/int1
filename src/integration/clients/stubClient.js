@@ -52,4 +52,35 @@ async function updateTask(task) {
   );
 }
 
-module.exports = { createBoard, updateBoard, createTask, updateTask };
+/**
+ * Simulates creating the comment in the external system, returning a synthetic
+ * external id. Same 32-bit INTEGER constraint as createBoard — keep it < 1e9.
+ */
+async function createComment(comment) {
+  const externalId = Math.floor(Math.random() * 1e9);
+  console.log(
+    `[stubClient] created comment (local id ${comment.id}) ` +
+      `remotely as ${externalId}`
+  );
+  return externalId;
+}
+
+/**
+ * Simulates pushing a comment update to the external system. The comment is
+ * already integrated, so we address it by its existing integrationCommentId.
+ */
+async function updateComment(comment) {
+  console.log(
+    `[stubClient] updated comment (local id ${comment.id}) ` +
+      `remotely as ${comment.integrationCommentId}`
+  );
+}
+
+module.exports = {
+  createBoard,
+  updateBoard,
+  createTask,
+  updateTask,
+  createComment,
+  updateComment,
+};

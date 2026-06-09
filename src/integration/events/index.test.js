@@ -45,6 +45,31 @@ describe('buildEvent', () => {
     assert.deepStrictEqual(buildEvent('TaskCreated', payload).payload, payload);
   });
 
+  it('produces a valid CommentCreated envelope', () => {
+    const payload = { integrationId: 2, commentId: 1, content: 'LGTM' };
+    const event = buildEvent('CommentCreated', payload);
+
+    assert.strictEqual(event.type, 'CommentCreated');
+    assert.ok(!Number.isNaN(Date.parse(event.occurredAt)));
+    assert.deepStrictEqual(event.payload, payload);
+  });
+
+  it('produces a valid CommentUpdated envelope', () => {
+    const payload = { integrationId: 2, commentId: 1, content: 'LGTM' };
+    const event = buildEvent('CommentUpdated', payload);
+
+    assert.strictEqual(event.type, 'CommentUpdated');
+    assert.ok(!Number.isNaN(Date.parse(event.occurredAt)));
+    assert.deepStrictEqual(event.payload, payload);
+  });
+
+  it('throws when CommentCreated is missing its content', () => {
+    assert.throws(
+      () => buildEvent('CommentCreated', { integrationId: 2, commentId: 1 }), // no content
+      /Invalid CommentCreated event/
+    );
+  });
+
   it('throws when a required BoardCreated payload field is missing', () => {
     assert.throws(
       () => buildEvent('BoardCreated', { integrationId: 2 }), // no boardId
@@ -96,6 +121,16 @@ describe('validateEvent', () => {
 
   it('accepts a well-formed TaskUpdated event and returns it', () => {
     const good = buildEvent('TaskUpdated', { integrationId: 2, taskId: 1, title: 'X' });
+    assert.deepStrictEqual(validateEvent(good), good);
+  });
+
+  it('accepts a well-formed CommentCreated event and returns it', () => {
+    const good = buildEvent('CommentCreated', { integrationId: 2, commentId: 1, content: 'X' });
+    assert.deepStrictEqual(validateEvent(good), good);
+  });
+
+  it('accepts a well-formed CommentUpdated event and returns it', () => {
+    const good = buildEvent('CommentUpdated', { integrationId: 2, commentId: 1, content: 'X' });
     assert.deepStrictEqual(validateEvent(good), good);
   });
 
