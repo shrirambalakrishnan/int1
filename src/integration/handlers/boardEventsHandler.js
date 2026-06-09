@@ -40,6 +40,33 @@ class BoardEventsHandler {
       integrationUpdatedAt: new Date(),
     });
   }
+
+  async onBoardUpdated(event) {
+    const { boardId, integrationId } = event.payload;
+
+    const board = await Board.findByPk(boardId);
+    if (!board) {
+      console.warn(
+        `[BoardEventsHandler] BoardUpdated for missing board ${boardId}; skipping`
+      );
+      return;
+    }
+
+    // Inverse of BoardCreated: a board that was never integrated has no remote
+    // counterpart to update. Skip rather than create one here — that's
+    // BoardCreated's job, and acting would race it.
+    if (board.integrationBoardId == null) {
+      console.warn(
+        `[BoardEventsHandler] BoardUpdated for un-integrated board ${board.id}; skipping`
+      );
+      return;
+    }
+
+    const client = selectIntegration(integrationId);
+    await client.updateBoard(board);
+
+    await board.update({ integrationUpdatedAt: new Date() });
+  }
 }
 
 module.exports = { BoardEventsHandler };

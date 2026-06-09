@@ -17,4 +17,15 @@ async function createBoard(board) {
   return externalId;
 }
 
-module.exports = { createBoard };
+/**
+ * Simulates pushing a board update to the external system. The board is already
+ * integrated, so we address it by its existing integrationBoardId.
+ */
+async function updateBoard(board) {
+  console.log(
+    `[stubClient] updated board "${board.name}" (local id ${board.id}) ` +
+      `remotely as ${board.integrationBoardId}`
+  );
+}
+
+module.exports = { createBoard, updateBoard };

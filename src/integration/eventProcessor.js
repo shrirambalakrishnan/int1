@@ -16,6 +16,7 @@ const boardEventsHandler = new BoardEventsHandler();
 
 const routes = {
   BoardCreated: (event) => boardEventsHandler.onBoardCreated(event),
+  BoardUpdated: (event) => boardEventsHandler.onBoardUpdated(event),
 };
 
 async function processEvent(rawEvent) {

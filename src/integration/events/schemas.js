@@ -30,8 +30,18 @@ const BoardCreated = Joi.object({
   }).required(),
 });
 
+const BoardUpdated = Joi.object({
+  ...envelope,
+  type: Joi.string().valid('BoardUpdated').required(),
+  payload: Joi.object({
+    integrationId: Joi.number().integer().required(),
+    boardId: Joi.number().integer().required(),
+  }).required(),
+});
+
 const eventSchemas = {
   BoardCreated,
+  BoardUpdated,
 };
 
 module.exports = { eventSchemas };
