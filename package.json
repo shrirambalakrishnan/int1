@@ -9,7 +9,8 @@
   "scripts": {
     "test": "node --test",
     "start": "node src/index.js",
-    "emit:board": "node scripts/emitBoardCreated.js"
+    "emit:board:created": "node scripts/emitBoardCreated.js",
+    "emit:board:updated": "node scripts/emitBoardUpdated.js"
   },
   "engines": {
     "node": ">=26.2.0",

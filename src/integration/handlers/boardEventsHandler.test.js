@@ -1,6 +1,6 @@
 'use strict';
 
-const { test, mock, afterEach } = require('node:test');
+const { describe, it, mock, afterEach } = require('node:test');
 const assert = require('node:assert');
 
 const { Board } = require('../../models');
@@ -17,36 +17,79 @@ const eventFor = (boardId, integrationId = 2) => ({
   payload: { boardId, integrationId },
 });
 
-test('integrates an un-integrated board and persists the external id', async () => {
-  const board = { id: 1, name: 'Test', integrationBoardId: null, update: mock.fn() };
-  mock.method(Board, 'findByPk', async () => board);
-  mock.method(stubClient, 'createBoard', async () => 12345);
-
-  await handler.onBoardCreated(eventFor(1));
-
-  assert.strictEqual(stubClient.createBoard.mock.callCount(), 1);
-  assert.strictEqual(board.update.mock.callCount(), 1);
-  const updateArg = board.update.mock.calls[0].arguments[0];
-  assert.strictEqual(updateArg.integrationBoardId, 12345);
-  assert.ok(updateArg.integrationUpdatedAt instanceof Date);
+const updatedEventFor = (boardId, integrationId = 2) => ({
+  type: 'BoardUpdated',
+  occurredAt: new Date().toISOString(),
+  payload: { boardId, integrationId },
 });
 
-test('is idempotent: skips a board that is already integrated', async () => {
-  const board = { id: 1, integrationBoardId: 999, update: mock.fn() };
-  mock.method(Board, 'findByPk', async () => board);
-  mock.method(stubClient, 'createBoard', async () => 12345);
+describe('onBoardCreated', () => {
+  it('integrates an un-integrated board and persists the external id', async () => {
+    const board = { id: 1, name: 'Test', integrationBoardId: null, update: mock.fn() };
+    mock.method(Board, 'findByPk', async () => board);
+    mock.method(stubClient, 'createBoard', async () => 12345);
 
-  await handler.onBoardCreated(eventFor(1));
+    await handler.onBoardCreated(eventFor(1));
 
-  assert.strictEqual(stubClient.createBoard.mock.callCount(), 0);
-  assert.strictEqual(board.update.mock.callCount(), 0);
+    assert.strictEqual(stubClient.createBoard.mock.callCount(), 1);
+    assert.strictEqual(board.update.mock.callCount(), 1);
+    const updateArg = board.update.mock.calls[0].arguments[0];
+    assert.strictEqual(updateArg.integrationBoardId, 12345);
+    assert.ok(updateArg.integrationUpdatedAt instanceof Date);
+  });
+
+  it('is idempotent: skips a board that is already integrated', async () => {
+    const board = { id: 1, integrationBoardId: 999, update: mock.fn() };
+    mock.method(Board, 'findByPk', async () => board);
+    mock.method(stubClient, 'createBoard', async () => 12345);
+
+    await handler.onBoardCreated(eventFor(1));
+
+    assert.strictEqual(stubClient.createBoard.mock.callCount(), 0);
+    assert.strictEqual(board.update.mock.callCount(), 0);
+  });
+
+  it('skips when the board no longer exists', async () => {
+    mock.method(Board, 'findByPk', async () => null);
+    mock.method(stubClient, 'createBoard', async () => 12345);
+
+    await handler.onBoardCreated(eventFor(999));
+
+    assert.strictEqual(stubClient.createBoard.mock.callCount(), 0);
+  });
 });
 
-test('skips when the board no longer exists', async () => {
-  mock.method(Board, 'findByPk', async () => null);
-  mock.method(stubClient, 'createBoard', async () => 12345);
+describe('onBoardUpdated', () => {
+  it('pushes an update for an integrated board and bumps integrationUpdatedAt', async () => {
+    const board = { id: 1, name: 'Test', integrationBoardId: 999, update: mock.fn() };
+    mock.method(Board, 'findByPk', async () => board);
+    mock.method(stubClient, 'updateBoard', async () => {});
 
-  await handler.onBoardCreated(eventFor(999));
+    await handler.onBoardUpdated(updatedEventFor(1));
 
-  assert.strictEqual(stubClient.createBoard.mock.callCount(), 0);
+    assert.strictEqual(stubClient.updateBoard.mock.callCount(), 1);
+    assert.strictEqual(board.update.mock.callCount(), 1);
+    const updateArg = board.update.mock.calls[0].arguments[0];
+    assert.ok(updateArg.integrationUpdatedAt instanceof Date);
+  });
+
+  it('skips a board that was never integrated', async () => {
+    const board = { id: 1, integrationBoardId: null, update: mock.fn() };
+    mock.method(Board, 'findByPk', async () => board);
+    mock.method(stubClient, 'updateBoard', async () => {});
+
+    await handler.onBoardUpdated(updatedEventFor(1));
+
+    assert.strictEqual(stubClient.updateBoard.mock.callCount(), 0);
+    assert.strictEqual(board.update.mock.callCount(), 0);
+  });
+
+  it('skips when the board no longer exists', async () => {
+    mock.method(Board, 'findByPk', async () => null);
+    mock.method(stubClient, 'updateBoard', async () => {});
+
+    await handler.onBoardUpdated(updatedEventFor(999));
+
+    assert.strictEqual(stubClient.updateBoard.mock.callCount(), 0);
+  });
 });
