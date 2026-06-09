@@ -39,9 +39,34 @@ const BoardUpdated = Joi.object({
   }).required(),
 });
 
+const TaskCreated = Joi.object({
+  ...envelope,
+  type: Joi.string().valid('TaskCreated').required(),
+  payload: Joi.object({
+    integrationId: Joi.number().integer().required(),
+    taskId: Joi.number().integer().required(),
+    // title is NOT NULL on Task; description is nullable.
+    title: Joi.string().required(),
+    description: Joi.string().allow(null),
+  }).required(),
+});
+
+const TaskUpdated = Joi.object({
+  ...envelope,
+  type: Joi.string().valid('TaskUpdated').required(),
+  payload: Joi.object({
+    integrationId: Joi.number().integer().required(),
+    taskId: Joi.number().integer().required(),
+    title: Joi.string().required(),
+    description: Joi.string().allow(null),
+  }).required(),
+});
+
 const eventSchemas = {
   BoardCreated,
   BoardUpdated,
+  TaskCreated,
+  TaskUpdated,
 };
 
 module.exports = { eventSchemas };

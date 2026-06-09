@@ -1,6 +1,7 @@
 'use strict';
 
 const { BoardEventsHandler } = require('./handlers/boardEventsHandler');
+const { TaskEventsHandler } = require('./handlers/taskEventsHandler');
 const { validateEvent } = require('./events');
 
 /**
@@ -13,10 +14,13 @@ const { validateEvent } = require('./events');
  * Event shape: { type, occurredAt, payload: { ... } }
  */
 const boardEventsHandler = new BoardEventsHandler();
+const taskEventsHandler = new TaskEventsHandler();
 
 const routes = {
   BoardCreated: (event) => boardEventsHandler.onBoardCreated(event),
   BoardUpdated: (event) => boardEventsHandler.onBoardUpdated(event),
+  TaskCreated: (event) => taskEventsHandler.onTaskCreated(event),
+  TaskUpdated: (event) => taskEventsHandler.onTaskUpdated(event),
 };
 
 async function processEvent(rawEvent) {
