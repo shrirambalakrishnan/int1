@@ -80,15 +80,30 @@ async function createBoard(board) {
   return String(list.id);
 }
 
-// Remaining client methods land with their events (BoardUpdated, Task*,
-// Comment*). Explicit throwers keep failures loud and named until then.
+/**
+ * Pushes a board rename to the external system. The board is already
+ * integrated, so its List is addressed by integrationBoardId. Name is the
+ * only Board attribute int1 owns; ClickUp-side fields stay untouched.
+ */
+async function updateBoard(board) {
+  await request('PUT', `/list/${board.integrationBoardId}`, {
+    name: board.name,
+  });
+  console.log(
+    `[clickupClient] updated board "${board.name}" (local id ${board.id}) ` +
+      `remotely as list ${board.integrationBoardId}`
+  );
+}
+
+// Remaining client methods land with their events (Task*, Comment*).
+// Explicit throwers keep failures loud and named until then.
 const notImplemented = (method) => async () => {
   throw new Error(`[clickupClient] ${method} is not implemented yet`);
 };
 
 module.exports = {
   createBoard,
-  updateBoard: notImplemented('updateBoard'),
+  updateBoard,
   createTask: notImplemented('createTask'),
   updateTask: notImplemented('updateTask'),
   createComment: notImplemented('createComment'),
