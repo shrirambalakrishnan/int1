@@ -1,6 +1,6 @@
 'use strict';
 
-const { Comment } = require('../../models');
+const { Comment, Task } = require('../../models');
 const { selectIntegration } = require('../selectIntegration');
 
 /**
@@ -32,8 +32,23 @@ class CommentEventsHandler {
       return;
     }
 
+    // Comments are created *on* the task's remote counterpart, so the parent
+    // must be integrated first. Unlike the skip-guards above ("nothing to
+    // do"), an un-integrated parent is "can't do it yet" — throw so the
+    // failure is loud today and becomes a redelivery once a broker fronts
+    // this; the idempotency check makes the eventual retry safe.
+    const task = await Task.findByPk(comment.taskId);
+    if (!task || task.integrationTaskId == null) {
+      throw new Error(
+        `[CommentEventsHandler] CommentCreated for comment ${comment.id} but ` +
+          `its task ${comment.taskId} is ` +
+          `${task ? 'not integrated yet' : 'missing'}; ` +
+          `cannot create the comment remotely`
+      );
+    }
+
     const client = await selectIntegration(integrationId);
-    const externalId = await client.createComment(comment);
+    const externalId = await client.createComment(comment, task);
 
     await comment.update({
       integrationCommentId: externalId,

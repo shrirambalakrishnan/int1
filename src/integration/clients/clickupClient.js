@@ -136,17 +136,44 @@ async function updateTask(task) {
   );
 }
 
-// Remaining client methods land with their events (Comment*).
-// Explicit throwers keep failures loud and named until then.
-const notImplemented = (method) => async () => {
-  throw new Error(`[clickupClient] ${method} is not implemented yet`);
-};
+/**
+ * Creates the comment on its parent task's remote counterpart — the handler
+ * passes the task in so the client stays DB-free. notify_all stays false:
+ * every synced comment pinging watchers would be noise, not signal.
+ */
+async function createComment(comment, task) {
+  const created = await request(
+    'POST',
+    `/task/${task.integrationTaskId}/comment`,
+    { comment_text: comment.content, notify_all: false }
+  );
+  console.log(
+    `[clickupClient] created comment (local id ${comment.id}) ` +
+      `remotely as ${created.id} on task ${task.integrationTaskId}`
+  );
+  return String(created.id);
+}
+
+/**
+ * Pushes a comment edit to the external system. Comment ids are global in
+ * ClickUp, so the comment addresses itself by integrationCommentId — no
+ * parent needed.
+ */
+async function updateComment(comment) {
+  await request('PUT', `/comment/${comment.integrationCommentId}`, {
+    comment_text: comment.content,
+  });
+  console.log(
+    `[clickupClient] updated comment (local id ${comment.id}) ` +
+      `remotely as ${comment.integrationCommentId}`
+  );
+}
 
 module.exports = {
   createBoard,
   updateBoard,
   createTask,
   updateTask,
-  createComment: notImplemented('createComment'),
-  updateComment: notImplemented('updateComment'),
+  createComment,
+  updateComment,
 };
