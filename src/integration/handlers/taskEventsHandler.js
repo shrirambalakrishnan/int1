@@ -32,7 +32,7 @@ class TaskEventsHandler {
       return;
     }
 
-    const client = selectIntegration(integrationId);
+    const client = await selectIntegration(integrationId);
     const externalId = await client.createTask(task);
 
     await task.update({
@@ -62,7 +62,7 @@ class TaskEventsHandler {
       return;
     }
 
-    const client = selectIntegration(integrationId);
+    const client = await selectIntegration(integrationId);
     await client.updateTask(task);
 
     await task.update({ integrationUpdatedAt: new Date() });
