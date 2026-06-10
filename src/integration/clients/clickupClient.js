@@ -95,7 +95,48 @@ async function updateBoard(board) {
   );
 }
 
-// Remaining client methods land with their events (Task*, Comment*).
+/**
+ * Creates the task in its parent board's List — the handler passes the board
+ * in so the client stays DB-free. The task lands in the List's default status
+ * with no assignees (assignee mapping is deferred until IntegrationUser holds
+ * real ClickUp member ids). Task ids are alphanumeric strings.
+ */
+async function createTask(task, board) {
+  const body = { name: task.title };
+  if (task.description != null) {
+    body.description = task.description;
+  }
+  const created = await request(
+    'POST',
+    `/list/${board.integrationBoardId}/task`,
+    body
+  );
+  console.log(
+    `[clickupClient] created task "${task.title}" (local id ${task.id}) ` +
+      `remotely as ${created.id} in list ${board.integrationBoardId}`
+  );
+  return String(created.id);
+}
+
+/**
+ * Pushes a task edit to the external system. Task ids are workspace-global in
+ * ClickUp, so the task addresses itself by integrationTaskId — no parent
+ * needed. ClickUp's PUT only touches the fields sent, so unsynced attributes
+ * (status, priority, ...) stay as they are remotely.
+ */
+async function updateTask(task) {
+  const body = { name: task.title };
+  if (task.description != null) {
+    body.description = task.description;
+  }
+  await request('PUT', `/task/${task.integrationTaskId}`, body);
+  console.log(
+    `[clickupClient] updated task "${task.title}" (local id ${task.id}) ` +
+      `remotely as ${task.integrationTaskId}`
+  );
+}
+
+// Remaining client methods land with their events (Comment*).
 // Explicit throwers keep failures loud and named until then.
 const notImplemented = (method) => async () => {
   throw new Error(`[clickupClient] ${method} is not implemented yet`);
@@ -104,8 +145,8 @@ const notImplemented = (method) => async () => {
 module.exports = {
   createBoard,
   updateBoard,
-  createTask: notImplemented('createTask'),
-  updateTask: notImplemented('updateTask'),
+  createTask,
+  updateTask,
   createComment: notImplemented('createComment'),
   updateComment: notImplemented('updateComment'),
 };

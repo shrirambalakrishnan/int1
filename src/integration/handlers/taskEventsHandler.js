@@ -1,6 +1,6 @@
 'use strict';
 
-const { Task } = require('../../models');
+const { Task, Board } = require('../../models');
 const { selectIntegration } = require('../selectIntegration');
 
 /**
@@ -32,8 +32,22 @@ class TaskEventsHandler {
       return;
     }
 
+    // Tasks are created *inside* the board's remote counterpart, so the
+    // parent must be integrated first. Unlike the skip-guards above ("nothing
+    // to do"), an un-integrated parent is "can't do it yet" — throw so the
+    // failure is loud today and becomes a redelivery once a broker fronts
+    // this; the idempotency check makes the eventual retry safe.
+    const board = await Board.findByPk(task.boardId);
+    if (!board || board.integrationBoardId == null) {
+      throw new Error(
+        `[TaskEventsHandler] TaskCreated for task ${task.id} but its board ` +
+          `${task.boardId} is ${board ? 'not integrated yet' : 'missing'}; ` +
+          `cannot create the task remotely`
+      );
+    }
+
     const client = await selectIntegration(integrationId);
-    const externalId = await client.createTask(task);
+    const externalId = await client.createTask(task, board);
 
     await task.update({
       integrationTaskId: externalId,

@@ -30,9 +30,11 @@ async function updateBoard(board) {
 
 /**
  * Simulates creating the task in the external system, returning a synthetic
- * external id (a string, like createBoard).
+ * external id (a string, like createBoard). Takes the parent board like the
+ * real clients do — providers create tasks *inside* a board's remote
+ * counterpart — though the stub has no use for it.
  */
-async function createTask(task) {
+async function createTask(task, board) {
   const externalId = String(Math.floor(Math.random() * 1e9));
   console.log(
     `[stubClient] created task "${task.title}" (local id ${task.id}) ` +
