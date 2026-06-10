@@ -36,7 +36,7 @@ module.exports = (sequelize, DataTypes) => {
         allowNull: false,
       },
       integrationTaskId: {
-        type: DataTypes.NUMBER,
+        type: DataTypes.STRING,
         allowNull: true,
       },
       createdByIntegrationUserId: {

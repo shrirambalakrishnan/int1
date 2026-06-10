@@ -5,11 +5,11 @@
  * until we have credentials and a concrete API to call. It simulates creating
  * the board in the external system and returns a synthetic external id.
  *
- * NOTE: Board.integrationBoardId is a Postgres INTEGER, so the synthetic id must
- * fit in a 32-bit int — keep it < 1e9. (Date.now() in ms would overflow.)
+ * External ids are strings (real providers use opaque, sometimes alphanumeric
+ * handles — e.g. ClickUp task ids), so the synthetic ids are stringified too.
  */
 async function createBoard(board) {
-  const externalId = Math.floor(Math.random() * 1e9);
+  const externalId = String(Math.floor(Math.random() * 1e9));
   console.log(
     `[stubClient] created board "${board.name}" (local id ${board.id}) ` +
       `remotely as ${externalId}`
@@ -30,10 +30,10 @@ async function updateBoard(board) {
 
 /**
  * Simulates creating the task in the external system, returning a synthetic
- * external id. Same 32-bit INTEGER constraint as createBoard — keep it < 1e9.
+ * external id (a string, like createBoard).
  */
 async function createTask(task) {
-  const externalId = Math.floor(Math.random() * 1e9);
+  const externalId = String(Math.floor(Math.random() * 1e9));
   console.log(
     `[stubClient] created task "${task.title}" (local id ${task.id}) ` +
       `remotely as ${externalId}`
@@ -54,10 +54,10 @@ async function updateTask(task) {
 
 /**
  * Simulates creating the comment in the external system, returning a synthetic
- * external id. Same 32-bit INTEGER constraint as createBoard — keep it < 1e9.
+ * external id (a string, like createBoard).
  */
 async function createComment(comment) {
-  const externalId = Math.floor(Math.random() * 1e9);
+  const externalId = String(Math.floor(Math.random() * 1e9));
   console.log(
     `[stubClient] created comment (local id ${comment.id}) ` +
       `remotely as ${externalId}`
