@@ -56,9 +56,11 @@ async function updateTask(task) {
 
 /**
  * Simulates creating the comment in the external system, returning a synthetic
- * external id (a string, like createBoard).
+ * external id (a string, like createBoard). Takes the parent task like the
+ * real clients do — providers create comments *on* a task's remote
+ * counterpart — though the stub has no use for it.
  */
-async function createComment(comment) {
+async function createComment(comment, task) {
   const externalId = String(Math.floor(Math.random() * 1e9));
   console.log(
     `[stubClient] created comment (local id ${comment.id}) ` +
