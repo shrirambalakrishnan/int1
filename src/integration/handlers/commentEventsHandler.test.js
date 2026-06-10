@@ -1,14 +1,18 @@
 'use strict';
 
-const { describe, it, mock, afterEach } = require('node:test');
+const { describe, it, mock, beforeEach, afterEach } = require('node:test');
 const assert = require('node:assert');
 
-const { Comment } = require('../../models');
+const { Comment, Integration } = require('../../models');
 const stubClient = require('../clients/stubClient');
 const { CommentEventsHandler } = require('./commentEventsHandler');
 
 const handler = new CommentEventsHandler();
 
+// selectIntegration resolves the Integration row by pk to pick a client;
+// an unknown/missing integration falls back to stubClient, which is the
+// client these tests mock.
+beforeEach(() => mock.method(Integration, 'findByPk', async () => null));
 afterEach(() => mock.restoreAll());
 
 const eventFor = (commentId, integrationId = 2) => ({

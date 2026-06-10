@@ -32,7 +32,7 @@ class CommentEventsHandler {
       return;
     }
 
-    const client = selectIntegration(integrationId);
+    const client = await selectIntegration(integrationId);
     const externalId = await client.createComment(comment);
 
     await comment.update({
@@ -62,7 +62,7 @@ class CommentEventsHandler {
       return;
     }
 
-    const client = selectIntegration(integrationId);
+    const client = await selectIntegration(integrationId);
     await client.updateComment(comment);
 
     await comment.update({ integrationUpdatedAt: new Date() });

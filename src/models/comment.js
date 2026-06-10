@@ -29,7 +29,7 @@ module.exports = (sequelize, DataTypes) => {
         allowNull: true,
       },
       integrationCommentId: {
-        type: DataTypes.NUMBER,
+        type: DataTypes.STRING,
         allowNull: true,
       },
       integrationUpdatedAt: {

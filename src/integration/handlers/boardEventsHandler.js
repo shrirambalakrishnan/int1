@@ -32,7 +32,7 @@ class BoardEventsHandler {
       return;
     }
 
-    const client = selectIntegration(integrationId);
+    const client = await selectIntegration(integrationId);
     const externalId = await client.createBoard(board);
 
     await board.update({
@@ -62,7 +62,7 @@ class BoardEventsHandler {
       return;
     }
 
-    const client = selectIntegration(integrationId);
+    const client = await selectIntegration(integrationId);
     await client.updateBoard(board);
 
     await board.update({ integrationUpdatedAt: new Date() });
