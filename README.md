@@ -30,6 +30,69 @@ A unified aggregator for Project Management Tools
 | Subtask    | A child task nested under a parent task  |
 | Attachment | One or more documents added to a comment |
 
+## Integrations
+
+How a local change reaches the external tool:
+
+1. An event (`BoardCreated`, `TaskUpdated`, ...) enters `processEvent()`
+   (`src/integration/eventProcessor.js`). Today the `npm run emit:*` scripts drive this
+   directly; a message broker (RabbitMQ) will replace them as the trigger.
+2. The matching handler (`src/integration/handlers/`) loads the entity, applies guards,
+   and resolves a client through `selectIntegration` — a registry keyed by the
+   `Integration` row's name. Unregistered names fall back to a **stub client** that
+   simulates a provider with synthetic ids.
+3. The client (`src/integration/clients/`) maps int1's uniform interface —
+   `createBoard`, `updateBoard`, `createTask`, `updateTask`, `createComment`,
+   `updateComment` — onto the provider's REST API. Clients never touch the database:
+   handlers load parent entities and pass them in (`createTask(task, board)`,
+   `createComment(comment, task)`).
+
+Authentication is pluggable per provider via strategies (`src/integration/auth/`),
+resolved through `selectAuthStrategy`. The first strategy is `token` (static API
+token); OAuth can be added later without touching clients' call sites.
+
+Guard behavior in handlers:
+
+| Situation                                        | Behavior                                  |
+|--------------------------------------------------|-------------------------------------------|
+| Entity already integrated (Created redelivered)  | Skip — idempotent, retry-safe              |
+| Update event for a never-integrated entity       | Skip — creation is the Created event's job |
+| Created event but parent not integrated yet      | **Throw** — loud now, broker redelivery later |
+
+External ids (`integrationBoardId`, `integrationTaskId`, `integrationCommentId`,
+`externalUserId`) are **opaque strings** — providers use alphanumeric and >32-bit ids.
+
+### ClickUp
+
+| int1 entity  | ClickUp resource                                       |
+|--------------|--------------------------------------------------------|
+| Integration  | Workspace + one Space (pinned by `CLICKUP_SPACE_ID`)   |
+| Board        | List, created folderless in that Space                 |
+| Task         | Task, created in the board's List (default status)     |
+| Comment      | Comment on the task                                    |
+| User         | Workspace member (mapping deferred)                    |
+
+- **API**: v2, `https://api.clickup.com/api/v2`. Endpoints used:
+  `POST /space/{id}/list`, `PUT /list/{id}`, `POST /list/{id}/task`, `PUT /task/{id}`,
+  `POST /task/{id}/comment`, `PUT /comment/{id}`.
+- **Auth**: personal API token (`pk_…`) via the `token` strategy, sent bare in the
+  `Authorization` header (no `Bearer` prefix). Stored in the Keychain as
+  `CLICKUP_API_TOKEN` (see Secrets below).
+- **Setup**: the `clickup` Integration row ships in a migration, so every environment
+  has it after `db:migrate`. Only `CLICKUP_SPACE_ID` (non-secret) goes in `.env`.
+- **Rate limit**: 100 requests/min on the free plan. On 429 the client waits for
+  `X-RateLimit-Reset` and retries once, then throws.
+- **Deferred**: assignee/user mapping, status sync, inbound sync (webhooks),
+  reconciliation sweep.
+
+Driving a sync by hand:
+
+```bash
+set -a; . ./.env; set +a
+export CLICKUP_API_TOKEN=$(security find-generic-password -a "$USER" -s CLICKUP_API_TOKEN -w)
+npm run emit:board:created -- <boardId> <integrationId>
+```
+
 ## Secrets
 
 Secrets (API tokens, passwords, keys) are **never stored in `.env` or any file in the
