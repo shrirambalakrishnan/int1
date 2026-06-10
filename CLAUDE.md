@@ -15,6 +15,23 @@ set -a; . ./.env; set +a
 npx sequelize-cli db:migrate
 ```
 
+## Secrets — macOS Keychain, never .env
+
+Secrets (API tokens, credentials) never go in `.env` or any file — `.env` holds only
+non-secret config (hosts, IDs). Secrets live in the macOS Keychain; the Keychain
+service name equals the env var name:
+
+```bash
+# store once (-U updates if it exists); prompts for the value so it stays out of shell history
+security add-generic-password -U -a "$USER" -s "CLICKUP_API_TOKEN" -w
+
+# read — inline in commands or export before npm start
+export CLICKUP_API_TOKEN=$(security find-generic-password -a "$USER" -s "CLICKUP_API_TOKEN" -w)
+```
+
+Always suggest this pattern when a new secret/token is introduced. Full detail in
+README "Secrets" section.
+
 ## Decisions & gotchas
 
 - **Migrations are progressive — never fold a change back into a `create-*` migration.**
