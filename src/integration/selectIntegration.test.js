@@ -7,6 +7,7 @@ const { Integration } = require('../models');
 const stubClient = require('./clients/stubClient');
 const clickupClient = require('./clients/clickupClient');
 const asanaClient = require('./clients/asanaClient');
+const trelloClient = require('./clients/trelloClient');
 const { selectIntegration } = require('./selectIntegration');
 
 afterEach(() => mock.restoreAll());
@@ -22,6 +23,12 @@ describe('selectIntegration', () => {
     mock.method(Integration, 'findByPk', async () => ({ name: 'Asana' }));
 
     assert.strictEqual(await selectIntegration(1), asanaClient);
+  });
+
+  it("resolves an integration named 'trello' to the trello client", async () => {
+    mock.method(Integration, 'findByPk', async () => ({ name: 'Trello' }));
+
+    assert.strictEqual(await selectIntegration(1), trelloClient);
   });
 
   it('falls back to the stub client for unregistered integration names', async () => {
