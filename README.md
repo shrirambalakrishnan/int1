@@ -121,6 +121,44 @@ npm run emit:board:created -- <boardId> <integrationId>
 Driving a sync by hand works the same as ClickUp, with `ASANA_API_TOKEN` exported
 instead.
 
+### Trello
+
+| int1 entity  | Trello resource                                         |
+|--------------|---------------------------------------------------------|
+| Integration  | one Board (pinned by `TRELLO_BOARD_ID`)                 |
+| Board        | List, created on that Board                             |
+| Task         | Card, created in the board's List                       |
+| Comment      | Comment on the card (a `commentCard` Action)            |
+| User         | Board member (mapping deferred)                         |
+
+Cards can only live in Lists, never directly on a Board — so int1 Boards map a level
+below Trello's Board, same reasoning as ClickUp's Space and Asana's Workspace.
+
+- **API**: v1, `https://api.trello.com/1`. Endpoints used:
+  `POST /lists`, `PUT /lists/{id}`, `POST /cards`, `PUT /cards/{id}`,
+  `POST /cards/{id}/actions/comments`, `PUT /actions/{id}/text`. Error bodies are
+  often plain text (`invalid key`), only sometimes JSON (`{ message }`).
+- **Auth**: API key (identifies the app) + user token, both in a single header via the
+  `token` strategy with `scheme: 'OAuth'`:
+  `Authorization: OAuth oauth_consumer_key="…", oauth_token="…"` — no signing, the
+  scheme just borrows OAuth 1.0's header shape. The header form (not Trello's
+  `?key=…&token=…` query alternative) keeps credentials out of request paths, which
+  appear in error messages and logs. Stored in the Keychain as `TRELLO_API_KEY` and
+  `TRELLO_API_TOKEN` (see Secrets below). Get the key from an app at
+  [trello.com/power-ups/admin](https://trello.com/power-ups/admin) (API Key tab);
+  generate the token via the "Token" link next to the key — real tokens start with
+  `ATTA`.
+- **Setup**: the `trello` Integration row ships in a migration. `TRELLO_BOARD_ID`
+  (non-secret) goes in `.env` — use the canonical 24-char id, not the 8-char
+  shortLink from the board URL.
+- **Rate limit**: 100 requests per 10 seconds per token (300 per key). The 429 carries
+  no retry header, so the client sleeps one full 10s window, retries once, then throws.
+- **Deferred**: assignee/user mapping, status sync, inbound sync (webhooks),
+  reconciliation sweep.
+
+Driving a sync by hand works the same as ClickUp, with both `TRELLO_API_KEY` and
+`TRELLO_API_TOKEN` exported instead.
+
 ## Secrets
 
 Secrets (API tokens, passwords, keys) are **never stored in `.env` or any file in the
@@ -177,3 +215,5 @@ the value came from the Keychain.
 |----------------------------|----------------------------------|
 | `CLICKUP_API_TOKEN`        | ClickUp personal API token (`pk_…`) for the ClickUp integration |
 | `ASANA_API_TOKEN`          | Asana Personal Access Token for the Asana integration |
+| `TRELLO_API_KEY`           | Trello API key (identifies the app) for the Trello integration |
+| `TRELLO_API_TOKEN`         | Trello user token (`ATTA…`) for the Trello integration |

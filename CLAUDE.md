@@ -1,10 +1,14 @@
 # int1
 
 API-only service mirroring external integrations (Jira/Linear-style) into Postgres.
-Express 5 + Sequelize 6. No UI, no auth yet. Real providers are ClickUp and Asana
-(outbound push, all six events); everything else resolves to a stub client.
+Express 5 + Sequelize 6. No UI, no auth yet. Real providers are ClickUp, Asana and
+Trello (outbound push, all six events); everything else resolves to a stub client.
 Architecture is in the code/README — this file only captures what isn't obvious from
 reading the repo.
+
+**Docs are part of every feature.** When a feature lands, update the README in the
+same change (new provider → its own README section + secrets table row), and update
+this file if a decision or gotcha changed. Don't wait to be asked.
 
 ## Commands
 
@@ -16,7 +20,8 @@ npm start
 set -a; . ./.env; set +a
 npx sequelize-cli db:migrate
 
-# Anything that talks to ClickUp also needs the token exported (see Secrets):
+# Anything that talks to a provider also needs its secret(s) exported (see Secrets) —
+# CLICKUP_API_TOKEN, ASANA_API_TOKEN, or TRELLO_API_KEY + TRELLO_API_TOKEN:
 export CLICKUP_API_TOKEN=$(security find-generic-password -a "$USER" -s "CLICKUP_API_TOKEN" -w)
 npm run emit:board:created -- <boardId> <integrationId>   # drive the worker end-to-end
 ```
@@ -70,14 +75,18 @@ README "Secrets" section.
   missing Integration row "succeeds" with fake external ids. That's why the `clickup` row is
   reference data shipped in a migration (`ON CONFLICT DO NOTHING`; `down` is a deliberate
   no-op — deleting would cascade to Boards).
-- **Deliberately NOT extracted yet (rule of three — revisit at the third provider):**
-  each client keeps its own `request()` because the provider-specific parts dominate:
-  ClickUp errors are `{err, ECODE}` with `X-RateLimit-Reset`; Asana wraps everything in a
-  `{data}` envelope, errors are `{errors: [...]}`, rate limit via `Retry-After`. A third
-  provider will show what the true common core is. The 429 sleep-and-retry-once is scaffolding —
-  when a broker fronts the worker it should be deleted (throw → nack → delayed redelivery),
-  with a client-side throttle below 100 req/min and a cron reconciler on top
-  (`integrationUpdatedAt` + null-external-id columns are designed for that sweep).
+- **`request()` is deliberately NOT extracted — three siblings, extraction is its own
+  pending decision.** The rule-of-three trigger has fired (Trello was the third provider)
+  but extraction was kept out of the feature change. The provider-specific parts each
+  client owns: ClickUp errors are `{err, ECODE}` with `X-RateLimit-Reset`; Asana wraps
+  everything in a `{data}` envelope, errors are `{errors: [...]}`, rate limit via
+  `Retry-After`; Trello errors are often **plain text**, not JSON, and its 429 has **no
+  retry header** (fixed 10s windows — the client sleeps one window). The common core, if
+  extracted: fetch + JSON body + 429-retry-once skeleton, with error-shape and retry-delay
+  hooks. The 429 sleep-and-retry-once is scaffolding — when a broker fronts the worker it
+  should be deleted (throw → nack → delayed redelivery), with a client-side throttle below
+  the provider limit and a cron reconciler on top (`integrationUpdatedAt` +
+  null-external-id columns are designed for that sweep).
 - **Config homes — there is no config.json.** Provider constants (BASE_URL) live in the
   client; per-environment values in `.env`; secrets in Keychain; future per-instance
   settings belong on the Integration row (e.g. a `settings` JSONB), not in a file.
