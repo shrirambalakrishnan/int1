@@ -93,6 +93,34 @@ export CLICKUP_API_TOKEN=$(security find-generic-password -a "$USER" -s CLICKUP_
 npm run emit:board:created -- <boardId> <integrationId>
 ```
 
+### Asana
+
+| int1 entity  | Asana resource                                          |
+|--------------|---------------------------------------------------------|
+| Integration  | Workspace (pinned by `ASANA_WORKSPACE_ID`)              |
+| Board        | Project, created in that Workspace                      |
+| Task         | Task, attached to the board's Project via `projects`    |
+| Comment      | Story (type `comment`) on the task                      |
+| User         | Workspace member (mapping deferred)                     |
+
+- **API**: 1.0, `https://app.asana.com/api/1.0`. Endpoints used:
+  `POST /projects`, `PUT /projects/{gid}`, `POST /tasks`, `PUT /tasks/{gid}`,
+  `POST /tasks/{gid}/stories`, `PUT /stories/{gid}`. Request and response bodies
+  are wrapped in a `{ data }` envelope; errors arrive as `{ errors: [...] }`.
+- **Auth**: Personal Access Token via the `token` strategy with `scheme: 'Bearer'`.
+  Stored in the Keychain as `ASANA_API_TOKEN` (see Secrets below).
+- **Setup**: the `asana` Integration row ships in a migration. `ASANA_WORKSPACE_ID`
+  (non-secret) goes in `.env`. If the workspace is an *organization*, Asana also
+  requires a team on project creation — set `ASANA_TEAM_ID`; personal workspaces
+  don't need it.
+- **Rate limit**: 150 requests/min on the free plan. On 429 the client waits for
+  `Retry-After` (seconds) and retries once, then throws.
+- **Deferred**: assignee/user mapping, status sync, inbound sync (webhooks),
+  reconciliation sweep.
+
+Driving a sync by hand works the same as ClickUp, with `ASANA_API_TOKEN` exported
+instead.
+
 ## Secrets
 
 Secrets (API tokens, passwords, keys) are **never stored in `.env` or any file in the
@@ -148,3 +176,4 @@ the value came from the Keychain.
 | Keychain service / env var | Purpose                          |
 |----------------------------|----------------------------------|
 | `CLICKUP_API_TOKEN`        | ClickUp personal API token (`pk_…`) for the ClickUp integration |
+| `ASANA_API_TOKEN`          | Asana Personal Access Token for the Asana integration |

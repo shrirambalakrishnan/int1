@@ -3,6 +3,7 @@
 const { Integration } = require('../models');
 const stubClient = require('./clients/stubClient');
 const clickupClient = require('./clients/clickupClient');
+const asanaClient = require('./clients/asanaClient');
 
 /**
  * Resolves an integrationId to the client that knows how to talk to that
@@ -15,6 +16,7 @@ const clickupClient = require('./clients/clickupClient');
  */
 const clients = {
   clickup: clickupClient,
+  asana: asanaClient,
 };
 
 async function selectIntegration(integrationId) {

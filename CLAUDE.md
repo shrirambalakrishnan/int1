@@ -1,9 +1,10 @@
 # int1
 
 API-only service mirroring external integrations (Jira/Linear-style) into Postgres.
-Express 5 + Sequelize 6. No UI, no auth yet. First real provider is ClickUp (outbound
-push, all six events); everything else resolves to a stub client. Architecture is in
-the code/README — this file only captures what isn't obvious from reading the repo.
+Express 5 + Sequelize 6. No UI, no auth yet. Real providers are ClickUp and Asana
+(outbound push, all six events); everything else resolves to a stub client.
+Architecture is in the code/README — this file only captures what isn't obvious from
+reading the repo.
 
 ## Commands
 
@@ -69,9 +70,11 @@ README "Secrets" section.
   missing Integration row "succeeds" with fake external ids. That's why the `clickup` row is
   reference data shipped in a migration (`ON CONFLICT DO NOTHING`; `down` is a deliberate
   no-op — deleting would cascade to Boards).
-- **Deliberately NOT extracted yet (rule of three — wait for the second real provider):**
-  `request()` stays inside clickupClient because its error shape (`{err, ECODE}`) and
-  rate-limit headers are provider-specific. The 429 sleep-and-retry-once is scaffolding —
+- **Deliberately NOT extracted yet (rule of three — revisit at the third provider):**
+  each client keeps its own `request()` because the provider-specific parts dominate:
+  ClickUp errors are `{err, ECODE}` with `X-RateLimit-Reset`; Asana wraps everything in a
+  `{data}` envelope, errors are `{errors: [...]}`, rate limit via `Retry-After`. A third
+  provider will show what the true common core is. The 429 sleep-and-retry-once is scaffolding —
   when a broker fronts the worker it should be deleted (throw → nack → delayed redelivery),
   with a client-side throttle below 100 req/min and a cron reconciler on top
   (`integrationUpdatedAt` + null-external-id columns are designed for that sweep).

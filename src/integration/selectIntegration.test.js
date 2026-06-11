@@ -6,6 +6,7 @@ const assert = require('node:assert');
 const { Integration } = require('../models');
 const stubClient = require('./clients/stubClient');
 const clickupClient = require('./clients/clickupClient');
+const asanaClient = require('./clients/asanaClient');
 const { selectIntegration } = require('./selectIntegration');
 
 afterEach(() => mock.restoreAll());
@@ -15,6 +16,12 @@ describe('selectIntegration', () => {
     mock.method(Integration, 'findByPk', async () => ({ name: 'ClickUp' }));
 
     assert.strictEqual(await selectIntegration(1), clickupClient);
+  });
+
+  it("resolves an integration named 'asana' to the asana client", async () => {
+    mock.method(Integration, 'findByPk', async () => ({ name: 'Asana' }));
+
+    assert.strictEqual(await selectIntegration(1), asanaClient);
   });
 
   it('falls back to the stub client for unregistered integration names', async () => {
