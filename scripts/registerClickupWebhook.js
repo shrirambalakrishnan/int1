@@ -11,12 +11,44 @@
  *   endpointUrl  public URL of this service's receiver, e.g.
  *                https://<tunnel-host>/webhooks/clickup
  *
- * Needs CLICKUP_API_TOKEN exported (see README "Secrets") and CLICKUP_TEAM_ID /
- * CLICKUP_SPACE_ID in .env.
+ * Needs CLICKUP_TEAM_ID / CLICKUP_SPACE_ID in .env. CLICKUP_API_TOKEN is taken
+ * from the environment if exported, otherwise read straight from the Keychain
+ * (see README "Secrets") — one-time tooling, so the convenience is safe.
  */
 require('dotenv').config();
 
+const { execFileSync } = require('node:child_process');
+
 const { request } = require('../src/integration/clients/clickupClient');
+
+// The client reads CLICKUP_API_TOKEN from process.env lazily, per request, so
+// filling it in here (before any request) is enough.
+function ensureApiToken() {
+  if (process.env.CLICKUP_API_TOKEN) {
+    return;
+  }
+  try {
+    process.env.CLICKUP_API_TOKEN = execFileSync(
+      'security',
+      [
+        'find-generic-password',
+        '-a',
+        process.env.USER,
+        '-s',
+        'CLICKUP_API_TOKEN',
+        '-w',
+      ],
+      { encoding: 'utf8' }
+    ).trim();
+  } catch {
+    console.error(
+      '[registerClickupWebhook] CLICKUP_API_TOKEN is not exported and not in ' +
+        'the Keychain. Store it once with:\n' +
+        '  security add-generic-password -U -a "$USER" -s "CLICKUP_API_TOKEN" -w'
+    );
+    process.exit(1);
+  }
+}
 
 // Keep in sync with the translators in
 // src/integration/inbound/clickupWebhookTranslator.js.
@@ -46,6 +78,8 @@ async function main() {
     );
     process.exit(1);
   }
+
+  ensureApiToken();
 
   const result = await request('POST', `/team/${teamId}/webhook`, {
     endpoint,

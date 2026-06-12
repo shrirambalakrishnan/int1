@@ -133,9 +133,11 @@ Changes made *in* ClickUp flow back through a webhook:
 
 ```bash
 set -a; . ./.env; set +a
-export CLICKUP_API_TOKEN=$(security find-generic-password -a "$USER" -s CLICKUP_API_TOKEN -w)
 npm run webhook:clickup:register -- https://<public-host>/webhooks/clickup
 ```
+
+  The script uses `CLICKUP_API_TOKEN` from the environment if exported, and
+  otherwise reads it from the Keychain itself.
 
   The script prints the webhook id and secret; store the secret in the Keychain as
   `CLICKUP_WEBHOOK_SECRET` (the script prints the exact command) and export it
