@@ -1,6 +1,7 @@
 'use strict';
 
 const { selectAuthStrategy } = require('../auth/selectAuthStrategy');
+const { createRequest } = require('./request');
 
 /**
  * ClickUp integration client (API v2). Same surface as stubClient so
@@ -24,46 +25,19 @@ function spaceId() {
   return id;
 }
 
-async function request(method, path, body) {
-  const auth = selectAuthStrategy('token', {
-    token: process.env.CLICKUP_API_TOKEN,
-  });
-
-  const doFetch = async () =>
-    fetch(`${BASE_URL}${path}`, {
-      method,
-      headers: {
-        'Content-Type': 'application/json',
-        ...(await auth.getAuthHeaders()),
-      },
-      body: body === undefined ? undefined : JSON.stringify(body),
-    });
-
-  let res = await doFetch();
-
+const request = createRequest({
+  name: 'clickupClient',
+  baseUrl: BASE_URL,
+  authStrategy: () =>
+    selectAuthStrategy('token', { token: process.env.CLICKUP_API_TOKEN }),
   // Free plan allows 100 requests/min. On 429 ClickUp sends the window end in
-  // X-RateLimit-Reset (unix seconds); wait it out and retry once, then give up
-  // and let the thrown error become a redelivery once a broker fronts this.
-  if (res.status === 429) {
-    const resetAt = Number(res.headers.get('x-ratelimit-reset')) * 1000;
-    const waitMs = Math.min(Math.max(resetAt - Date.now(), 1_000), 60_000);
-    console.warn(`[clickupClient] rate limited; retrying in ${waitMs}ms`);
-    await new Promise((resolve) => setTimeout(resolve, waitMs));
-    res = await doFetch();
-  }
-
-  const data = await res.json().catch(() => ({}));
-
-  if (!res.ok) {
-    // ClickUp errors carry { err, ECODE }; surface both for debugging.
-    throw new Error(
-      `[clickupClient] ${method} ${path} -> ${res.status}: ` +
-        `${data.err || 'unknown error'} (ECODE: ${data.ECODE || 'n/a'})`
-    );
-  }
-
-  return data;
-}
+  // X-RateLimit-Reset (unix seconds).
+  retryDelayMs: (res) =>
+    Number(res.headers.get('x-ratelimit-reset')) * 1000 - Date.now(),
+  // ClickUp errors carry { err, ECODE }; surface both for debugging.
+  errorMessage: (json) =>
+    `${json.err || 'unknown error'} (ECODE: ${json.ECODE || 'n/a'})`,
+});
 
 /**
  * Creates the board as a folderless List in the configured Space. ClickUp ids

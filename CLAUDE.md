@@ -75,18 +75,35 @@ README "Secrets" section.
   missing Integration row "succeeds" with fake external ids. That's why the `clickup` row is
   reference data shipped in a migration (`ON CONFLICT DO NOTHING`; `down` is a deliberate
   no-op — deleting would cascade to Boards).
-- **`request()` is deliberately NOT extracted — three siblings, extraction is its own
-  pending decision.** The rule-of-three trigger has fired (Trello was the third provider)
-  but extraction was kept out of the feature change. The provider-specific parts each
-  client owns: ClickUp errors are `{err, ECODE}` with `X-RateLimit-Reset`; Asana wraps
-  everything in a `{data}` envelope, errors are `{errors: [...]}`, rate limit via
-  `Retry-After`; Trello errors are often **plain text**, not JSON, and its 429 has **no
-  retry header** (fixed 10s windows — the client sleeps one window). The common core, if
-  extracted: fetch + JSON body + 429-retry-once skeleton, with error-shape and retry-delay
-  hooks. The 429 sleep-and-retry-once is scaffolding — when a broker fronts the worker it
-  should be deleted (throw → nack → delayed redelivery), with a client-side throttle below
-  the provider limit and a cron reconciler on top (`integrationUpdatedAt` +
-  null-external-id columns are designed for that sweep).
+- **`request()` is extracted (2026-06): generalize the skeleton, never the quirks.**
+  `clients/request.js` exports `createRequest({name, baseUrl, authStrategy, retryDelayMs,
+  errorMessage, wrapBody?, unwrapResponse?})` — the core owns fetch + read-body-as-text-
+  then-try-JSON + 429-retry-once (wait clamped 1s–60s). Quirks stay in each client as
+  hooks: ClickUp errors `{err, ECODE}`, retry from `X-RateLimit-Reset`; Asana `{data}`
+  envelope both ways, errors `{errors: [...]}`, retry from `Retry-After`; Trello errors
+  often **plain text** and its 429 has **no retry header** (fixed 10s window). Do NOT
+  generalize further: the six mapping functions ARE the quirks (config-driven only works
+  for data variance, not behavior variance). **Hook-creep guardrails:** the core is
+  opt-in — the client contract is only the six methods (stubClient has no `request()` at
+  all). A new provider may add at most ONE new hook, and only optional + defaulted to
+  current behavior so existing clients and their tests are untouched. Hard cap: the
+  descriptor stays ≤ 8 keys total (now 7). A provider needing more than one new hook, or
+  breaching the cap, writes its own private `request()` instead — never bend the core
+  around one weird API; ten providers each adding "just one hook" is how a helper becomes
+  a framework. The 429 sleep-and-retry-once is scaffolding —
+  when a broker fronts the worker delete it from the core (throw → nack → delayed
+  redelivery), with a client-side throttle below the provider limit and a cron reconciler
+  on top (`integrationUpdatedAt` + null-external-id columns are designed for that sweep).
+- **No workflow engine — deliberate, with a defined trigger to revisit (decided 2026-06).**
+  Multi-step syncs (e.g. ensure-user-then-create-board) do NOT need an engine: each step's
+  completion persists as domain state (`externalUserId`, `integrationBoardId`, ...) with an
+  idempotent already-done guard, so ordering and resume-from-checkpoint fall out of
+  guards + redelivery (choreography, not orchestration). **Recommend switching to a
+  workflow engine the moment a proposed feature needs orchestration state with no domain
+  home:** fan-out/fan-in joins ("237 of 500 backfilled tasks done"), compensation/undo
+  across steps, timers or waiting-on-human states, or dynamic step graphs. Backfill/import
+  of an existing external board is the expected first trigger — if such a feature comes up,
+  raise this decision proactively before designing it on guards alone.
 - **Config homes — there is no config.json.** Provider constants (BASE_URL) live in the
   client; per-environment values in `.env`; secrets in Keychain; future per-instance
   settings belong on the Integration row (e.g. a `settings` JSONB), not in a file.

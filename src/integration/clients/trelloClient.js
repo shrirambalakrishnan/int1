@@ -1,6 +1,7 @@
 'use strict';
 
 const { selectAuthStrategy } = require('../auth/selectAuthStrategy');
+const { createRequest } = require('./request');
 
 /**
  * Trello integration client (REST API v1). Same surface as stubClient so
@@ -16,12 +17,6 @@ const { selectAuthStrategy } = require('../auth/selectAuthStrategy');
  * exported from the Keychain into the shell (see README "Secrets") and
  * TRELLO_BOARD_ID comes from .env, so none are guaranteed to exist at module
  * load.
- *
- * request() is deliberately a sibling of the other clients', not a shared
- * extraction — Trello's error bodies are often plain text ("invalid key"),
- * not JSON, and its 429 carries no retry header at all (limits are fixed
- * 10-second windows). Three providers are now in view; extracting the common
- * core is a separate decision.
  */
 const BASE_URL = 'https://api.trello.com/1';
 
@@ -60,51 +55,17 @@ function authStrategy() {
   });
 }
 
-async function request(method, path, body) {
-  const auth = authStrategy();
-
-  const doFetch = async () =>
-    fetch(`${BASE_URL}${path}`, {
-      method,
-      headers: {
-        'Content-Type': 'application/json',
-        ...(await auth.getAuthHeaders()),
-      },
-      body: body === undefined ? undefined : JSON.stringify(body),
-    });
-
-  let res = await doFetch();
-
+const request = createRequest({
+  name: 'trelloClient',
+  baseUrl: BASE_URL,
+  authStrategy,
   // Limits are 100 requests per token (300 per key) in fixed 10-second
-  // windows, and the 429 carries no retry header — so wait out one full
-  // window and retry once, then give up and let the thrown error become a
-  // redelivery once a broker fronts this.
-  if (res.status === 429) {
-    const waitMs = 10_000;
-    console.warn(`[trelloClient] rate limited; retrying in ${waitMs}ms`);
-    await new Promise((resolve) => setTimeout(resolve, waitMs));
-    res = await doFetch();
-  }
-
+  // windows, and the 429 carries no retry header — wait out one full window.
+  retryDelayMs: () => 10_000,
   // Trello errors are often plain text ("invalid key", "invalid id"), only
-  // sometimes JSON ({ message }) — read once as text and try both shapes.
-  const text = await res.text();
-  let json = {};
-  try {
-    json = JSON.parse(text);
-  } catch {
-    // not JSON; `text` already holds the message
-  }
-
-  if (!res.ok) {
-    throw new Error(
-      `[trelloClient] ${method} ${path} -> ${res.status}: ` +
-        `${json.message || text || 'unknown error'}`
-    );
-  }
-
-  return json;
-}
+  // sometimes JSON ({ message }).
+  errorMessage: (json, text) => json.message || text,
+});
 
 /**
  * Creates the board as a List on the configured Trello Board. Trello ids are
