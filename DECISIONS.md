@@ -4,7 +4,32 @@ Append-only log of significant design decisions. Newest first. Keep each entry
 brief (Context / Decision / Consequences). Don't edit past entries — to change a
 decision, add a new dated entry that supersedes the old one.
 
-## 2026-06-05 — Validate events against one shared schema at both boundaries
+## 2026-06-12 — Inbound webhooks reuse the event seam; provider retry is the redelivery
+
+**Context:** First inbound sync (ClickUp webhooks → canonical models). The outbound
+flow already has an event seam (`processEvent`), shared schemas, and guard semantics;
+inbound could either reuse them or grow a parallel pipeline.
+
+**Decision:** Webhook deliveries are translated into canonical `External*` events
+(`ExternalBoardCreated`, ...) that flow through the same `processEvent` seam and
+schema validation as outbound. The translator
+(`integration/inbound/clickupWebhookTranslator.js`) is the only provider-specific
+piece: it verifies nothing (the controller checked the HMAC over the raw body
+already), fetches the full entity because ClickUp payloads are thin, and builds the
+event; the `External*` handlers are provider-agnostic and only write canonical rows.
+Guard semantics mirror outbound, inverted: already-mirrored external id → skip (this
+doubles as echo suppression of our own outbound pushes); update for an unmirrored
+entity → skip; created event whose parent isn't mirrored yet → throw → HTTP 500 →
+ClickUp redelivers. The provider's webhook retry plays the broker-redelivery role
+today, so the receiver processes inline and acks with the outcome rather than
+queueing.
+
+**Consequences:** No second pipeline; a future Asana/Trello inbound is one new
+translator plus a registration script. Trade-offs: processing inline ties webhook
+latency to our handler time (fine at this scale; the broker plan covers async later);
+a parent-ordering throw depends on ClickUp actually retrying; the echo race (webhook
+arriving before the outbound handler persists the external id) can duplicate a row —
+loud via unique index, reconciler sweep is the eventual fix.
 
 **Context:** Events flow producer → worker; a malformed payload could be emitted or
 received, and per-side copies of the rules would drift.

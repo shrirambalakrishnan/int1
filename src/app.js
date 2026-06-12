@@ -7,8 +7,13 @@ const loginUserRoutes = require('./routes/loginuser');
 const integrationUserRoutes = require('./routes/integrationuser');
 const boardRoutes = require('./routes/board');
 const commentRoutes = require('./routes/comment');
+const webhookRoutes = require('./routes/webhook');
 
 const app = express();
+
+// Before express.json(): webhook signatures are verified over the raw body,
+// so the webhook router does its own (raw) body parsing.
+app.use('/webhooks', webhookRoutes);
 
 app.use(express.json());
 

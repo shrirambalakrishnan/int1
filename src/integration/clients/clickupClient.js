@@ -143,6 +143,28 @@ async function updateComment(comment) {
   );
 }
 
+// ---------------------------------------------------------------------------
+// Inbound reads — used by the webhook translator to enrich ClickUp's thin
+// webhook payloads. These are NOT part of the cross-provider client contract
+// (still the six methods above, resolved via selectIntegration); the inbound
+// path is ClickUp-specific and imports this module directly.
+
+/** Fetches a List (the remote counterpart of a Board). */
+async function getList(listId) {
+  return request('GET', `/list/${listId}`);
+}
+
+/** Fetches a Task. `list.id` on the result locates the parent board. */
+async function getTask(taskId) {
+  return request('GET', `/task/${taskId}`);
+}
+
+/** Fetches a Task's comments; ClickUp wraps them in { comments: [...] }. */
+async function getTaskComments(taskId) {
+  const result = await request('GET', `/task/${taskId}/comment`);
+  return result.comments;
+}
+
 module.exports = {
   createBoard,
   updateBoard,
@@ -150,4 +172,10 @@ module.exports = {
   updateTask,
   createComment,
   updateComment,
+  getList,
+  getTask,
+  getTaskComments,
+  // For tooling that owns its own ClickUp calls (webhook registration script);
+  // not for handlers, which stay behind the six-method contract.
+  request,
 };

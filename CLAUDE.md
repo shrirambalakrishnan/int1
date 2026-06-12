@@ -2,7 +2,8 @@
 
 API-only service mirroring external integrations (Jira/Linear-style) into Postgres.
 Express 5 + Sequelize 6. No UI, no auth yet. Real providers are ClickUp, Asana and
-Trello (outbound push, all six events); everything else resolves to a stub client.
+Trello (outbound push, all six events; ClickUp also has inbound webhooks); everything
+else resolves to a stub client.
 Architecture is in the code/README — this file only captures what isn't obvious from
 reading the repo.
 
@@ -104,6 +105,22 @@ README "Secrets" section.
   across steps, timers or waiting-on-human states, or dynamic step graphs. Backfill/import
   of an existing external board is the expected first trigger — if such a feature comes up,
   raise this decision proactively before designing it on guards alone.
+- **Inbound webhooks (ClickUp, 2026-06): same event seam, inverted guards.** Webhook
+  deliveries become canonical `External*` events through the one `processEvent` seam.
+  The split: the controller (`controllers/webhook.js`) owns signature verification —
+  HMAC over the **raw body**, so `/webhooks` mounts before `express.json()` and uses
+  `express.raw` — the translator (`integration/inbound/`) is the only provider-aware
+  piece (fetches the full entity; ClickUp payloads are thin), and the `External*`
+  handlers only write canonical rows. Skip/throw semantics mirror outbound: known
+  external id → skip (this IS the echo suppression for our own outbound pushes — don't
+  add a separate mechanism); created-event-with-unmirrored-parent → throw → 500 →
+  ClickUp's webhook retry is the redelivery. `processEvent` is awaited inline in the
+  controller — scaffolding, like the 429 sleep-and-retry: when RabbitMQ lands, switch
+  the receiver to verify → translate → publish → ack, and let the consumer call
+  `processEvent` (nack replaces the 500-as-retry). The client read methods
+  (`getList/getTask/getTaskComments`) and exported `request` on clickupClient are
+  inbound/tooling extras — the cross-provider contract via `selectIntegration` is
+  still only the six outbound methods.
 - **Config homes — there is no config.json.** Provider constants (BASE_URL) live in the
   client; per-environment values in `.env`; secrets in Keychain; future per-instance
   settings belong on the Integration row (e.g. a `settings` JSONB), not in a file.
