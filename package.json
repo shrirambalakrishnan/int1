@@ -15,7 +15,8 @@
     "emit:task:updated": "node scripts/emitTaskUpdated.js",
     "emit:comment:created": "node scripts/emitCommentCreated.js",
     "emit:comment:updated": "node scripts/emitCommentUpdated.js",
-    "webhook:clickup:register": "node scripts/registerClickupWebhook.js"
+    "webhook:clickup:register": "node scripts/registerClickupWebhook.js",
+    "webhook:asana:register": "node scripts/registerAsanaWebhook.js"
   },
   "engines": {
     "node": ">=26.2.0",
