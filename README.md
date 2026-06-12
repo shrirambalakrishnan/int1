@@ -45,7 +45,11 @@ How a local change reaches the external tool:
    `createBoard`, `updateBoard`, `createTask`, `updateTask`, `createComment`,
    `updateComment` — onto the provider's REST API. Clients never touch the database:
    handlers load parent entities and pass them in (`createTask(task, board)`,
-   `createComment(comment, task)`).
+   `createComment(comment, task)`). All real clients share one HTTP core
+   (`clients/request.js`: fetch + JSON + 429-retry-once), configured per provider
+   with small hooks for the parts that genuinely differ — error shape, retry
+   delay, body envelope. Only those hooks and the six mapping functions are
+   provider-specific.
 
 Authentication is pluggable per provider via strategies (`src/integration/auth/`),
 resolved through `selectAuthStrategy`. The first strategy is `token` (static API

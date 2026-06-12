@@ -1,6 +1,7 @@
 'use strict';
 
 const { selectAuthStrategy } = require('../auth/selectAuthStrategy');
+const { createRequest } = require('./request');
 
 /**
  * Asana integration client (API 1.0). Same surface as stubClient so
@@ -15,12 +16,6 @@ const { selectAuthStrategy } = require('../auth/selectAuthStrategy');
  * Config is read lazily, per call: ASANA_API_TOKEN is exported from the
  * Keychain into the shell (see README "Secrets") and ASANA_WORKSPACE_ID comes
  * from .env, so neither is guaranteed to exist at module load.
- *
- * request() is deliberately a sibling of clickupClient's, not a shared
- * extraction — the envelope ({ data } in and out), the error shape
- * ({ errors: [...] } vs { err, ECODE }) and the rate-limit header
- * (Retry-After seconds vs X-RateLimit-Reset unix time) are all
- * provider-specific. Revisit when a third provider lands.
  */
 const BASE_URL = 'https://app.asana.com/api/1.0';
 
@@ -32,49 +27,22 @@ function workspaceId() {
   return id;
 }
 
-async function request(method, path, body) {
-  const auth = selectAuthStrategy('token', {
-    token: process.env.ASANA_API_TOKEN,
-    scheme: 'Bearer',
-  });
-
-  const doFetch = async () =>
-    fetch(`${BASE_URL}${path}`, {
-      method,
-      headers: {
-        'Content-Type': 'application/json',
-        ...(await auth.getAuthHeaders()),
-      },
-      // Asana wraps every request and response in a { data } envelope.
-      body: body === undefined ? undefined : JSON.stringify({ data: body }),
-    });
-
-  let res = await doFetch();
-
-  // Free plan allows 150 requests/min. On 429 Asana sends Retry-After
-  // (seconds); wait it out and retry once, then give up and let the thrown
-  // error become a redelivery once a broker fronts this.
-  if (res.status === 429) {
-    const retryAfterMs = Number(res.headers.get('retry-after')) * 1000;
-    const waitMs = Math.min(Math.max(retryAfterMs, 1_000), 60_000);
-    console.warn(`[asanaClient] rate limited; retrying in ${waitMs}ms`);
-    await new Promise((resolve) => setTimeout(resolve, waitMs));
-    res = await doFetch();
-  }
-
-  const json = await res.json().catch(() => ({}));
-
-  if (!res.ok) {
-    // Asana errors carry { errors: [{ message, help }] }; surface the messages.
-    const messages = (json.errors || []).map((e) => e.message).join('; ');
-    throw new Error(
-      `[asanaClient] ${method} ${path} -> ${res.status}: ` +
-        `${messages || 'unknown error'}`
-    );
-  }
-
-  return json.data;
-}
+const request = createRequest({
+  name: 'asanaClient',
+  baseUrl: BASE_URL,
+  authStrategy: () =>
+    selectAuthStrategy('token', {
+      token: process.env.ASANA_API_TOKEN,
+      scheme: 'Bearer',
+    }),
+  // Free plan allows 150 requests/min. On 429 Asana sends Retry-After (seconds).
+  retryDelayMs: (res) => Number(res.headers.get('retry-after')) * 1000,
+  // Asana errors carry { errors: [{ message, help }] }; surface the messages.
+  errorMessage: (json) => (json.errors || []).map((e) => e.message).join('; '),
+  // Asana wraps every request and response in a { data } envelope.
+  wrapBody: (body) => ({ data: body }),
+  unwrapResponse: (json) => json.data,
+});
 
 /**
  * Creates the board as a Project in the configured Workspace. Asana gids are
