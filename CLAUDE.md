@@ -114,7 +114,10 @@ README "Secrets" section.
   handlers only write canonical rows. Skip/throw semantics mirror outbound: known
   external id → skip (this IS the echo suppression for our own outbound pushes — don't
   add a separate mechanism); created-event-with-unmirrored-parent → throw → 500 →
-  ClickUp's webhook retry is the redelivery. The client read methods
+  ClickUp's webhook retry is the redelivery. `processEvent` is awaited inline in the
+  controller — scaffolding, like the 429 sleep-and-retry: when RabbitMQ lands, switch
+  the receiver to verify → translate → publish → ack, and let the consumer call
+  `processEvent` (nack replaces the 500-as-retry). The client read methods
   (`getList/getTask/getTaskComments`) and exported `request` on clickupClient are
   inbound/tooling extras — the cross-provider contract via `selectIntegration` is
   still only the six outbound methods.

@@ -62,6 +62,10 @@ async function clickup(req, res, next) {
       throw new Error('[webhook] no Integration row named "clickup"');
     }
 
+    // processEvent runs inline (synchronously awaited) for now, so the HTTP
+    // response doubles as the processing outcome. Once RabbitMQ fronts the
+    // worker, this becomes: translate -> publish -> ack immediately; the
+    // consumer calls processEvent and a nack replaces the 500-as-retry below.
     const event = await translateClickupWebhook(body, integration.id);
     if (event) {
       await processEvent(event);

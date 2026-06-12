@@ -142,6 +142,11 @@ npm run webhook:clickup:register -- https://<public-host>/webhooks/clickup
   before `npm start`. For local dev ClickUp needs a public URL — put a tunnel
   (e.g. `ngrok http 3000` or `cloudflared tunnel --url http://localhost:3000`) in
   front and register the tunnel URL.
+- **Synchronous for now**: the receiver awaits `processEvent()` inline, so webhook
+  latency includes our handler time and a handler throw surfaces as the 500 that
+  triggers ClickUp's retry. When RabbitMQ lands, the receiver should verify,
+  translate, **publish, and ack immediately**; the consumer then calls
+  `processEvent` and a nack/delayed-redelivery replaces the 500-as-retry.
 - **Known limitations**: `Task.title` is unique, so an inbound task whose title
   collides with an existing one fails (500; ClickUp's retries will keep failing —
   rename one side). And in a tight race, ClickUp's echo of our own outbound push can
