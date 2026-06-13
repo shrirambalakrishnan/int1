@@ -170,6 +170,34 @@ async function updateComment(comment) {
   );
 }
 
+// ---------------------------------------------------------------------------
+// Inbound reads — used by the webhook translator to enrich Trello webhook
+// deliveries. Trello action payloads are fatter than ClickUp's/Asana's, but a
+// createCard omits the desc and an updateCard carries only the changed fields,
+// so the full entity is fetched to build complete canonical rows. These are NOT
+// part of the cross-provider client contract (still the six methods above,
+// resolved via selectIntegration); the inbound path is Trello-specific and
+// imports this module directly.
+
+/** Fetches a List (the remote counterpart of a Board). */
+async function getList(listId) {
+  return request('GET', `/lists/${listId}`);
+}
+
+/** Fetches a Card. `idList` on the result locates the parent board. */
+async function getCard(cardId) {
+  return request('GET', `/cards/${cardId}`);
+}
+
+/**
+ * Fetches a comment Action (the remote counterpart of a Comment). `data.text`
+ * is the comment body; `data.card.id` is the parent card. Editing a comment
+ * updates this same action, so a GET always returns the current text.
+ */
+async function getCommentAction(actionId) {
+  return request('GET', `/actions/${actionId}`);
+}
+
 module.exports = {
   createBoard,
   updateBoard,
@@ -177,4 +205,10 @@ module.exports = {
   updateTask,
   createComment,
   updateComment,
+  getList,
+  getCard,
+  getCommentAction,
+  // For tooling that owns its own Trello calls (webhook registration script);
+  // not for handlers, which stay behind the six-method contract.
+  request,
 };

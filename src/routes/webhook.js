@@ -20,4 +20,14 @@ router.post(
 // run to echo X-Hook-Secret.
 router.post('/asana', express.raw({ type: '*/*' }), controller.asana);
 
+// HEAD: Trello's registration-time reachability check — it creates the webhook
+// only if this returns 200. POST: deliveries, signed (X-Trello-Webhook) over the
+// raw body, so raw parsing before express.json like ClickUp's.
+router.head('/trello', controller.trelloHandshake);
+router.post(
+  '/trello',
+  express.raw({ type: 'application/json' }),
+  controller.trello
+);
+
 module.exports = router;

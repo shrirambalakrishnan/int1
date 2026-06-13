@@ -9,6 +9,9 @@ const {
 const {
   translateAsanaWebhookEvent,
 } = require('../integration/inbound/asanaWebhookTranslator');
+const {
+  translateTrelloWebhook,
+} = require('../integration/inbound/trelloWebhookTranslator');
 const { processEvent } = require('../integration/eventProcessor');
 const { sendError } = require('../utils/errors');
 
@@ -19,7 +22,7 @@ const { sendError } = require('../utils/errors');
  *
  * Response contract: 401 on a bad signature, 200 once the delivery is applied
  * or deliberately skipped, 500 (via the central handler) when a handler
- * throws — both providers retry failed deliveries, so a throw becomes a
+ * throws — all three providers retry failed deliveries, so a throw becomes a
  * redelivery, exactly the role a broker nack will play later.
  */
 
@@ -34,7 +37,19 @@ function requiredSecret(envVar) {
   return secret;
 }
 
-// Both providers sign the same way: hex HMAC-SHA256 over the raw body.
+// Same lazy read for non-secret config that lives in .env (rather than the
+// Keychain): Trello signs over its registered callback URL, so the receiver
+// needs that exact URL — TRELLO_WEBHOOK_CALLBACK_URL — to recompute the HMAC.
+function requiredConfig(envVar) {
+  const value = process.env[envVar];
+  if (!value) {
+    throw new Error(`[webhook] ${envVar} is not set`);
+  }
+  return value;
+}
+
+// ClickUp and Asana sign the same way: hex HMAC-SHA256 over the raw body.
+// (Trello differs — see isValidTrelloSignature below.)
 function isValidSignature(rawBody, signatureHeader, secret) {
   if (typeof signatureHeader !== 'string' || signatureHeader.length === 0) {
     return false;
@@ -43,6 +58,26 @@ function isValidSignature(rawBody, signatureHeader, secret) {
     .createHmac('sha256', secret)
     .update(rawBody)
     .digest('hex');
+  const received = Buffer.from(signatureHeader);
+  return (
+    received.length === Buffer.byteLength(expected) &&
+    crypto.timingSafeEqual(received, Buffer.from(expected))
+  );
+}
+
+// Trello signs differently from ClickUp/Asana, so it gets its own function
+// rather than folding into the shared one: base64 (not hex) HMAC-SHA1 (not
+// SHA256) over the raw body with the registered callback URL appended, keyed by
+// the Trello app secret. The header is X-Trello-Webhook.
+function isValidTrelloSignature(rawBody, signatureHeader, secret, callbackUrl) {
+  if (typeof signatureHeader !== 'string' || signatureHeader.length === 0) {
+    return false;
+  }
+  const expected = crypto
+    .createHmac('sha1', secret)
+    .update(rawBody)
+    .update(callbackUrl)
+    .digest('base64');
   const received = Buffer.from(signatureHeader);
   return (
     received.length === Buffer.byteLength(expected) &&
@@ -137,4 +172,50 @@ async function asana(req, res, next) {
   }
 }
 
-module.exports = { clickup, asana };
+// Trello verifies the callback URL at registration time with a HEAD request and
+// creates the webhook only if it gets a 200 (no body, no signature). This is
+// Trello's analogue of Asana's X-Hook-Secret handshake — but a bare reachability
+// check, with no secret to echo (the secret is the pre-shared app secret).
+function trelloHandshake(req, res) {
+  res.status(200).end();
+}
+
+async function trello(req, res, next) {
+  try {
+    const secret = requiredSecret('TRELLO_API_SECRET');
+    const callbackUrl = requiredConfig('TRELLO_WEBHOOK_CALLBACK_URL');
+    if (
+      !isValidTrelloSignature(
+        req.body,
+        req.get('x-trello-webhook'),
+        secret,
+        callbackUrl
+      )
+    ) {
+      return res.status(401).json({ error: 'Invalid webhook signature' });
+    }
+
+    const body = JSON.parse(req.body.toString('utf8'));
+
+    const integration = await Integration.findOne({
+      where: { name: 'trello' },
+    });
+    if (!integration) {
+      throw new Error('[webhook] no Integration row named "trello"');
+    }
+
+    // Trello delivers one action per request (no batching, unlike Asana). An
+    // unhandled action type translates to null and is acked; a handler throw
+    // 500s and Trello redelivers (its retry is the broker-nack stand-in).
+    const event = await translateTrelloWebhook(body, integration.id);
+    if (event) {
+      await processEvent(event);
+    }
+
+    res.json({ ok: true });
+  } catch (err) {
+    sendError(res, next, err);
+  }
+}
+
+module.exports = { clickup, asana, trello, trelloHandshake };
