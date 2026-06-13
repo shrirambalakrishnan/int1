@@ -8,20 +8,38 @@ const { Integration } = require('../models');
 const controller = require('./webhook');
 
 const SECRET = 'test-webhook-secret';
+const TRELLO_CALLBACK_URL = 'https://example.test/webhooks/trello';
 
 beforeEach(() => {
   process.env.CLICKUP_WEBHOOK_SECRET = SECRET;
   process.env.ASANA_WEBHOOK_SECRET = SECRET;
+  process.env.TRELLO_API_SECRET = SECRET;
+  process.env.TRELLO_WEBHOOK_CALLBACK_URL = TRELLO_CALLBACK_URL;
 });
 
 afterEach(() => {
   delete process.env.CLICKUP_WEBHOOK_SECRET;
   delete process.env.ASANA_WEBHOOK_SECRET;
+  delete process.env.TRELLO_API_SECRET;
+  delete process.env.TRELLO_WEBHOOK_CALLBACK_URL;
   mock.restoreAll();
 });
 
 function sign(rawBody, secret = SECRET) {
   return crypto.createHmac('sha256', secret).update(rawBody).digest('hex');
+}
+
+// Trello signs base64 HMAC-SHA1 over the raw body with the callback URL appended.
+function signTrello(
+  rawBody,
+  secret = SECRET,
+  callbackUrl = TRELLO_CALLBACK_URL
+) {
+  return crypto
+    .createHmac('sha1', secret)
+    .update(rawBody)
+    .update(callbackUrl)
+    .digest('base64');
 }
 
 // Minimal req/res stand-ins: the controllers only use body (raw Buffer),
@@ -200,5 +218,66 @@ describe('webhook controller (asana)', () => {
       next.mock.calls[0].arguments[0].message,
       /ASANA_WEBHOOK_SECRET/
     );
+  });
+});
+
+describe('webhook controller (trello)', () => {
+  it('returns 200 on the registration HEAD handshake', () => {
+    const res = resRecorder();
+    controller.trelloHandshake(reqFor({}), res);
+    assert.strictEqual(res.statusCode, 200);
+    assert.strictEqual(res.ended, true);
+  });
+
+  it('rejects a tampered or missing signature with 401', async () => {
+    const body = { action: { type: 'createList' } };
+
+    for (const signature of [
+      signTrello(Buffer.from('other body')),
+      undefined,
+    ]) {
+      const res = resRecorder();
+      await controller.trello(
+        reqFor(body, { 'x-trello-webhook': signature }),
+        res,
+        mock.fn()
+      );
+      assert.strictEqual(res.statusCode, 401);
+    }
+  });
+
+  it('acks an unhandled action type with 200 after verifying the signature', async () => {
+    mock.method(Integration, 'findOne', async () => ({
+      id: 4,
+      name: 'trello',
+    }));
+
+    const body = { action: { type: 'updateBoard' } };
+    const raw = Buffer.from(JSON.stringify(body));
+    const res = resRecorder();
+
+    await controller.trello(
+      reqFor(body, { 'x-trello-webhook': signTrello(raw) }),
+      res,
+      mock.fn()
+    );
+
+    assert.strictEqual(res.statusCode, 200);
+    assert.deepStrictEqual(res.jsonBody, { ok: true });
+  });
+
+  it('forwards a missing-secret error to the central handler (500), not a 401', async () => {
+    delete process.env.TRELLO_API_SECRET;
+
+    const next = mock.fn();
+    const res = resRecorder();
+    await controller.trello(
+      reqFor({ action: { type: 'createList' } }, { 'x-trello-webhook': 'sig' }),
+      res,
+      next
+    );
+
+    assert.strictEqual(next.mock.callCount(), 1);
+    assert.match(next.mock.calls[0].arguments[0].message, /TRELLO_API_SECRET/);
   });
 });
