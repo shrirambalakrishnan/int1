@@ -15,4 +15,9 @@ router.post(
   controller.clickup
 );
 
+// type: '*/*' — Asana's handshake POST has no body, and express.raw only
+// produces a Buffer when the Content-Type matches; the controller must still
+// run to echo X-Hook-Secret.
+router.post('/asana', express.raw({ type: '*/*' }), controller.asana);
+
 module.exports = router;

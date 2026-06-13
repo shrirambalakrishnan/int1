@@ -147,6 +147,30 @@ async function updateComment(comment) {
   );
 }
 
+// ---------------------------------------------------------------------------
+// Inbound reads — used by the webhook translator to enrich Asana's compact
+// webhook events. These are NOT part of the cross-provider client contract
+// (still the six methods above, resolved via selectIntegration); the inbound
+// path is Asana-specific and imports this module directly.
+
+/** Fetches a Project (the remote counterpart of a Board). */
+async function getProject(projectGid) {
+  return request('GET', `/projects/${projectGid}`);
+}
+
+/** Fetches a Task. `projects[0].gid` on the result locates the parent board. */
+async function getTask(taskGid) {
+  return request('GET', `/tasks/${taskGid}`);
+}
+
+/**
+ * Fetches a Story. `resource_subtype` distinguishes user comments
+ * ("comment_added") from system stories; `target.gid` is the parent task.
+ */
+async function getStory(storyGid) {
+  return request('GET', `/stories/${storyGid}`);
+}
+
 module.exports = {
   createBoard,
   updateBoard,
@@ -154,4 +178,10 @@ module.exports = {
   updateTask,
   createComment,
   updateComment,
+  getProject,
+  getTask,
+  getStory,
+  // For tooling that owns its own Asana calls (webhook registration script);
+  // not for handlers, which stay behind the six-method contract.
+  request,
 };

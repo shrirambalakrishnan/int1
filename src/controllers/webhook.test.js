@@ -11,10 +11,12 @@ const SECRET = 'test-webhook-secret';
 
 beforeEach(() => {
   process.env.CLICKUP_WEBHOOK_SECRET = SECRET;
+  process.env.ASANA_WEBHOOK_SECRET = SECRET;
 });
 
 afterEach(() => {
   delete process.env.CLICKUP_WEBHOOK_SECRET;
+  delete process.env.ASANA_WEBHOOK_SECRET;
   mock.restoreAll();
 });
 
@@ -22,25 +24,39 @@ function sign(rawBody, secret = SECRET) {
   return crypto.createHmac('sha256', secret).update(rawBody).digest('hex');
 }
 
-// Minimal req/res stand-ins: the controller only uses body (raw Buffer),
-// get('x-signature'), status().json() and json().
-function reqFor(body, signature) {
-  const raw = Buffer.from(JSON.stringify(body));
+// Minimal req/res stand-ins: the controllers only use body (raw Buffer),
+// get(header), set(header), status().json()/.end() and json().
+function reqFor(body, headers = {}) {
+  const lowered = Object.fromEntries(
+    Object.entries(headers).map(([k, v]) => [k.toLowerCase(), v])
+  );
   return {
-    body: raw,
-    get: (name) =>
-      name.toLowerCase() === 'x-signature' ? signature : undefined,
+    body: Buffer.from(JSON.stringify(body)),
+    get: (name) => lowered[name.toLowerCase()],
   };
 }
 
 function resRecorder() {
-  const res = { statusCode: 200, jsonBody: undefined };
+  const res = {
+    statusCode: 200,
+    jsonBody: undefined,
+    headers: {},
+    ended: false,
+  };
   res.status = (code) => {
     res.statusCode = code;
     return res;
   };
   res.json = (payload) => {
     res.jsonBody = payload;
+    return res;
+  };
+  res.set = (name, value) => {
+    res.headers[name.toLowerCase()] = value;
+    return res;
+  };
+  res.end = () => {
+    res.ended = true;
     return res;
   };
   return res;
@@ -52,7 +68,11 @@ describe('webhook controller (clickup)', () => {
 
     for (const signature of [sign(Buffer.from('other body')), undefined]) {
       const res = resRecorder();
-      await controller.clickup(reqFor(body, signature), res, mock.fn());
+      await controller.clickup(
+        reqFor(body, { 'x-signature': signature }),
+        res,
+        mock.fn()
+      );
       assert.strictEqual(res.statusCode, 401);
     }
   });
@@ -67,7 +87,11 @@ describe('webhook controller (clickup)', () => {
     const raw = Buffer.from(JSON.stringify(body));
     const res = resRecorder();
 
-    await controller.clickup(reqFor(body, sign(raw)), res, mock.fn());
+    await controller.clickup(
+      reqFor(body, { 'x-signature': sign(raw) }),
+      res,
+      mock.fn()
+    );
 
     assert.strictEqual(res.statusCode, 200);
     assert.deepStrictEqual(res.jsonBody, { ok: true });
@@ -79,7 +103,7 @@ describe('webhook controller (clickup)', () => {
     const next = mock.fn();
     const res = resRecorder();
     await controller.clickup(
-      reqFor({ event: 'listCreated' }, 'sig'),
+      reqFor({ event: 'listCreated' }, { 'x-signature': 'sig' }),
       res,
       next
     );
@@ -88,6 +112,93 @@ describe('webhook controller (clickup)', () => {
     assert.match(
       next.mock.calls[0].arguments[0].message,
       /CLICKUP_WEBHOOK_SECRET/
+    );
+  });
+});
+
+describe('webhook controller (asana)', () => {
+  it('echoes X-Hook-Secret back with 200 on the registration handshake', async () => {
+    const res = resRecorder();
+
+    await controller.asana(
+      reqFor({}, { 'x-hook-secret': 'new-shared-secret' }),
+      res,
+      mock.fn()
+    );
+
+    assert.strictEqual(res.statusCode, 200);
+    assert.strictEqual(res.headers['x-hook-secret'], 'new-shared-secret');
+    assert.strictEqual(res.ended, true);
+  });
+
+  it('rejects a tampered or missing signature with 401', async () => {
+    const body = { events: [] };
+
+    for (const signature of [sign(Buffer.from('other body')), undefined]) {
+      const res = resRecorder();
+      await controller.asana(
+        reqFor(body, { 'x-hook-signature': signature }),
+        res,
+        mock.fn()
+      );
+      assert.strictEqual(res.statusCode, 401);
+    }
+  });
+
+  it('acks a heartbeat (empty events) with 200 after verifying the signature', async () => {
+    mock.method(Integration, 'findOne', async () => ({ id: 3, name: 'asana' }));
+
+    const body = { events: [] };
+    const raw = Buffer.from(JSON.stringify(body));
+    const res = resRecorder();
+
+    await controller.asana(
+      reqFor(body, { 'x-hook-signature': sign(raw) }),
+      res,
+      mock.fn()
+    );
+
+    assert.strictEqual(res.statusCode, 200);
+    assert.deepStrictEqual(res.jsonBody, { ok: true });
+  });
+
+  it('acks a batch of unhandled events with 200', async () => {
+    mock.method(Integration, 'findOne', async () => ({ id: 3, name: 'asana' }));
+
+    const body = {
+      events: [
+        { resource: { gid: '1', resource_type: 'task' }, action: 'deleted' },
+        { resource: { gid: '2', resource_type: 'project' }, action: 'removed' },
+      ],
+    };
+    const raw = Buffer.from(JSON.stringify(body));
+    const res = resRecorder();
+
+    await controller.asana(
+      reqFor(body, { 'x-hook-signature': sign(raw) }),
+      res,
+      mock.fn()
+    );
+
+    assert.strictEqual(res.statusCode, 200);
+    assert.deepStrictEqual(res.jsonBody, { ok: true });
+  });
+
+  it('forwards a missing-secret error to the central handler (500), not a 401', async () => {
+    delete process.env.ASANA_WEBHOOK_SECRET;
+
+    const next = mock.fn();
+    const res = resRecorder();
+    await controller.asana(
+      reqFor({ events: [] }, { 'x-hook-signature': 'sig' }),
+      res,
+      next
+    );
+
+    assert.strictEqual(next.mock.callCount(), 1);
+    assert.match(
+      next.mock.calls[0].arguments[0].message,
+      /ASANA_WEBHOOK_SECRET/
     );
   });
 });
