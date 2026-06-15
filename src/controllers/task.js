@@ -45,6 +45,7 @@ async function create(req, res, next) {
     });
 
     const event = buildEvent('TaskCreated', {
+      integrationId: board.integrationId,
       taskId: task.id,
       title: task.title,
       description: task.description,
@@ -59,14 +60,21 @@ async function create(req, res, next) {
 
 async function update(req, res, next) {
   try {
+    console.log(
+      'req.params.id, req.params.boardId = ',
+      req.params.id,
+      req.params.boardId
+    );
+
     const task = await Task.findOne({
       where: { id: req.params.id, boardId: req.params.boardId },
     });
     if (!task) return res.status(404).json({ error: 'Not found' });
     await task.update(req.body);
 
+    const board = await task.getBoard();
     const event = buildEvent('TaskUpdated', {
-      integrationId: task.integrationId,
+      integrationId: board.integrationId,
       taskId: task.id,
       title: task.title,
       description: task.description,

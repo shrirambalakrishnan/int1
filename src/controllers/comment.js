@@ -45,8 +45,10 @@ async function create(req, res, next) {
       ...req.body,
       taskId: req.params.taskId,
     });
+    const board = await task.getBoard();
 
     const event = buildEvent('CommentCreated', {
+      integrationId: board.integrationId,
       commentId: comment.id,
       content: comment.content,
     });
@@ -66,8 +68,11 @@ async function update(req, res, next) {
     if (!comment) return res.status(404).json({ error: 'Not found' });
     await comment.update(req.body);
 
+    const task = await comment.getTask();
+    const board = await task.getBoard();
+
     const event = buildEvent('CommentUpdated', {
-      integrationId: comment.integrationId,
+      integrationId: board.integrationId,
       commentId: comment.id,
       content: comment.content,
     });

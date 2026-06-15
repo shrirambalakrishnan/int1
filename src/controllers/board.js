@@ -33,6 +33,7 @@ async function create(req, res, next) {
     const board = await Board.create(req.body);
 
     const event = buildEvent('BoardCreated', {
+      integrationId: board.integrationId,
       boardId: board.id,
     });
 
