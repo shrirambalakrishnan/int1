@@ -3,7 +3,7 @@ require('dotenv').config();
 const sequelize = require('./db/index');
 const app = require('./app');
 
-const { getChannel, closeRabbitMQ, initRabbitMQ } = require('./rabbitMQ');
+const { closeRabbitMQ, initRabbitMQ } = require('./rabbitMQ');
 
 const PORT = process.env.PORT || 3000;
 

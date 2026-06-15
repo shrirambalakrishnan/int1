@@ -1,12 +1,7 @@
 require('dotenv').config();
 
 const sequelize = require('./db/index');
-const {
-  getChannel,
-  closeRabbitMQ,
-  initRabbitMQ,
-  consume,
-} = require('./rabbitMQ');
+const { closeRabbitMQ, initRabbitMQ, consume } = require('./rabbitMQ');
 const { processEvent } = require('./integration/eventProcessor');
 
 async function main() {
@@ -16,7 +11,7 @@ async function main() {
 
     await initRabbitMQ();
 
-    consume(processEvent);
+    await consume(processEvent);
     console.log('Worker listening on int1worker.queue');
   } catch (error) {
     console.error('Unable to connect to the database / rabbitmq:', error);
