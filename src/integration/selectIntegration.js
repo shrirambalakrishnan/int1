@@ -23,15 +23,8 @@ const clients = {
 
 async function selectIntegration(integrationId) {
   const integration = await Integration.findByPk(integrationId);
-  if (!integration) {
-    throw new Error(
-      'Integration not found for integrationId = ',
-      integrationId
-    );
-  }
-
   const name = integration?.name?.toLowerCase();
-  return clients[name];
+  return clients[name] || stubClient;
 }
 
 module.exports = { selectIntegration };
