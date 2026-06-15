@@ -25,7 +25,6 @@ const BoardCreated = Joi.object({
   ...envelope,
   type: Joi.string().valid('BoardCreated').required(),
   payload: Joi.object({
-    integrationId: Joi.number().integer().required(),
     boardId: Joi.number().integer().required(),
   }).required(),
 });

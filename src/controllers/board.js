@@ -1,7 +1,14 @@
 'use strict';
 
+const { buildEvent } = require('../integration/events');
 const { Board } = require('../models');
 const { sendError } = require('../utils/errors');
+const {
+  RABBITMQ_ROUTING_KEY_BOARD_CREATED,
+  RABBITMQ_ROUTING_KEY_BOARD_UPDATED,
+  pub,
+  publish,
+} = require('../rabbitMQ');
 
 async function list(req, res, next) {
   try {
@@ -25,6 +32,13 @@ async function get(req, res, next) {
 async function create(req, res, next) {
   try {
     const board = await Board.create(req.body);
+
+    const event = buildEvent('BoardCreated', {
+      boardId: board.id,
+    });
+
+    await publish(RABBITMQ_ROUTING_KEY_BOARD_CREATED, event);
+
     res.status(201).json({ data: board });
   } catch (err) {
     sendError(res, next, err);
