@@ -81,8 +81,13 @@ async function initRabbitMQ() {
 
 async function publish(routingKey, event) {
   const channel = await getChannel();
-  const content = Buffer.from(JSON.stringify(event));
+  console.log(
+    '[RabbitMQ.publish] publish parameters - ',
+    routingKey,
+    JSON.stringify(event)
+  );
 
+  const content = Buffer.from(JSON.stringify(event));
   channel.publish(RABBITMQ_EVENTS_EXCHANGE, routingKey, content, {
     persistent: true,
     contentType: 'application/json',
