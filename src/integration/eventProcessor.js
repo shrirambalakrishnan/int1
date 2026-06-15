@@ -54,8 +54,6 @@ const routes = {
 };
 
 async function processEvent(rawEvent) {
-  console.log('[eventProcessor.processEvent] rawEvent = ', rawEvent);
-
   const event = validateEvent(rawEvent);
   const route = routes[event.type];
   if (!route) {

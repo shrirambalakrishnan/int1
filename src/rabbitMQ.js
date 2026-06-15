@@ -1,6 +1,6 @@
 'use strict';
 
-const ampq = require('amqplib');
+const amqp = require('amqplib');
 
 // RabbitMQ config
 //////// init setup ////////
@@ -24,7 +24,7 @@ async function getChannel() {
     return channel;
   }
 
-  connection = await ampq.connect(process.env.RABBITMQ_URL);
+  connection = await amqp.connect(process.env.RABBITMQ_URL);
   channel = await connection.createChannel();
   return channel;
 }
@@ -81,12 +81,6 @@ async function initRabbitMQ() {
 
 async function publish(routingKey, event) {
   const channel = await getChannel();
-  console.log(
-    '[RabbitMQ.publish] publish parameters - ',
-    routingKey,
-    JSON.stringify(event)
-  );
-
   const content = Buffer.from(JSON.stringify(event));
   channel.publish(RABBITMQ_EVENTS_EXCHANGE, routingKey, content, {
     persistent: true,

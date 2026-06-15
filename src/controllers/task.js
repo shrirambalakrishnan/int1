@@ -60,12 +60,6 @@ async function create(req, res, next) {
 
 async function update(req, res, next) {
   try {
-    console.log(
-      'req.params.id, req.params.boardId = ',
-      req.params.id,
-      req.params.boardId
-    );
-
     const task = await Task.findOne({
       where: { id: req.params.id, boardId: req.params.boardId },
     });
