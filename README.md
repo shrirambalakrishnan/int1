@@ -34,9 +34,13 @@ A unified aggregator for Project Management Tools
 
 How a local change reaches the external tool:
 
-1. An event (`BoardCreated`, `TaskUpdated`, ...) enters `processEvent()`
-   (`src/integration/eventProcessor.js`). Today the `npm run emit:*` scripts drive this
-   directly; a message broker (RabbitMQ) will replace them as the trigger.
+1. An event (`BoardCreated`, `TaskUpdated`, ...) reaches `processEvent()`
+   (`src/integration/eventProcessor.js`). For outbound changes the API controllers
+   publish the event to RabbitMQ and a separate worker consumes it and calls
+   `processEvent` (see [Message broker (RabbitMQ)](#message-broker-rabbitmq) below).
+   The `npm run emit:*` scripts still call `processEvent` directly as a broker-free way
+   to drive a single event by hand, and inbound webhooks still invoke it inline (moving
+   those onto the broker is a separate ticket).
 2. The matching handler (`src/integration/handlers/`) loads the entity, applies guards,
    and resolves a client through `selectIntegration` — a registry keyed by the
    `Integration` row's name. Unregistered names fall back to a **stub client** that
@@ -65,6 +69,43 @@ Guard behavior in handlers:
 
 External ids (`integrationBoardId`, `integrationTaskId`, `integrationCommentId`,
 `externalUserId`) are **opaque strings** — providers use alphanumeric and >32-bit ids.
+
+### Message broker (RabbitMQ)
+
+Outbound events are decoupled from processing by a broker: the API publishes, a
+separate worker process consumes. All wiring lives in `src/rabbitMQ.js` (connection
+and channel, topology declaration, `publish`, `consume`).
+
+- **Producer** — the resource controllers (`src/controllers/board|task|comment.js`)
+  build the event after the DB write and `publish()` it to the **topic** exchange
+  `events.exchange`, with a routing key per type (`boards.created`, `tasks.updated`,
+  `comments.created`, ...).
+- **Queue & binding** — one durable queue `int1worker.queue`, bound to the exchange
+  for all six routing keys.
+- **Consumer** — the worker (`src/worker.js`, `npm run start:worker`) consumes the
+  queue and hands each message to `processEvent`.
+- **Topology** is asserted idempotently at startup, so both `npm start` and
+  `npm run start:worker` declare the exchange/queue/bindings on boot — order of
+  startup doesn't matter.
+- **Config**: `RABBITMQ_URL` is non-secret and lives in `.env`
+  (e.g. `amqp://localhost:5672`).
+
+Running the full outbound flow locally (two shells):
+
+```bash
+set -a; . ./.env; set +a
+export CLICKUP_API_TOKEN=$(security find-generic-password -a "$USER" -s CLICKUP_API_TOKEN -w)
+npm start             # API — publishes events on create/update
+npm run start:worker  # worker — consumes int1worker.queue -> processEvent
+```
+
+This is **Phase 1: the outbound happy path, on purpose**. Known follow-ups:
+
+- The consumer auto-acks (`noAck`), so a handler throw **drops** the message — no
+  ack/nack, retry/backoff, or dead-letter queue yet.
+- Publish happens after the DB commit and isn't transactional, so a broker outage can
+  leave a persisted row whose event never published; the planned `integrationUpdatedAt`
+  + null-external-id reconciliation sweep is the safety net.
 
 ### ClickUp
 

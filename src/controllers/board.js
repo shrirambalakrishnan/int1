@@ -1,7 +1,13 @@
 'use strict';
 
+const { buildEvent } = require('../integration/events');
 const { Board } = require('../models');
 const { sendError } = require('../utils/errors');
+const {
+  RABBITMQ_ROUTING_KEY_BOARD_CREATED,
+  RABBITMQ_ROUTING_KEY_BOARD_UPDATED,
+  publish,
+} = require('../rabbitMQ');
 
 async function list(req, res, next) {
   try {
@@ -25,6 +31,14 @@ async function get(req, res, next) {
 async function create(req, res, next) {
   try {
     const board = await Board.create(req.body);
+
+    const event = buildEvent('BoardCreated', {
+      integrationId: board.integrationId,
+      boardId: board.id,
+    });
+
+    await publish(RABBITMQ_ROUTING_KEY_BOARD_CREATED, event);
+
     res.status(201).json({ data: board });
   } catch (err) {
     sendError(res, next, err);
@@ -36,6 +50,13 @@ async function update(req, res, next) {
     const board = await Board.findByPk(req.params.id);
     if (!board) return res.status(404).json({ error: 'Not found' });
     await board.update(req.body);
+
+    const event = buildEvent('BoardUpdated', {
+      boardId: board.id,
+      integrationId: board.integrationId,
+    });
+    await publish(RABBITMQ_ROUTING_KEY_BOARD_UPDATED, event);
+
     res.json({ data: board });
   } catch (err) {
     sendError(res, next, err);
