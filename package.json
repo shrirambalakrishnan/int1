@@ -9,6 +9,7 @@
   "scripts": {
     "test": "node --test",
     "start": "node src/index.js",
+    "start:worker": "node src/worker.js",
     "emit:board:created": "node scripts/emitBoardCreated.js",
     "emit:board:updated": "node scripts/emitBoardUpdated.js",
     "emit:task:created": "node scripts/emitTaskCreated.js",

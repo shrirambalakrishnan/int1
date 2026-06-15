@@ -25,6 +25,7 @@ const BoardCreated = Joi.object({
   ...envelope,
   type: Joi.string().valid('BoardCreated').required(),
   payload: Joi.object({
+    integrationId: Joi.number().integer().required(),
     boardId: Joi.number().integer().required(),
   }).required(),
 });
@@ -42,6 +43,7 @@ const TaskCreated = Joi.object({
   ...envelope,
   type: Joi.string().valid('TaskCreated').required(),
   payload: Joi.object({
+    integrationId: Joi.number().integer().required(),
     taskId: Joi.number().integer().required(),
     // title is NOT NULL on Task; description is nullable.
     title: Joi.string().required(),
@@ -64,6 +66,7 @@ const CommentCreated = Joi.object({
   ...envelope,
   type: Joi.string().valid('CommentCreated').required(),
   payload: Joi.object({
+    integrationId: Joi.number().integer().required(),
     commentId: Joi.number().integer().required(),
     // content is NOT NULL on Comment.
     content: Joi.string().required(),

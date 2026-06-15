@@ -95,6 +95,20 @@ async function publish(routingKey, event) {
   });
 }
 
+async function consume(handler) {
+  const channel = await getChannel();
+  await channel.consume(
+    RABBITMQ_INT1_WORKER_QUEUE,
+    async (msg) => {
+      if (msg == null) return;
+
+      const event = JSON.parse(msg.content.toString());
+      await handler(event);
+    },
+    { noAck: true }
+  );
+}
+
 module.exports = {
   RABBITMQ_ROUTING_KEY_BOARD_CREATED,
   RABBITMQ_ROUTING_KEY_BOARD_UPDATED,
@@ -106,4 +120,5 @@ module.exports = {
   closeRabbitMQ,
   initRabbitMQ,
   publish,
+  consume,
 };
