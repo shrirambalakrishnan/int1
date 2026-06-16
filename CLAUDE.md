@@ -155,6 +155,22 @@ README "Secrets" section.
   but the translator still fetches the entity for completeness while reading the actor
   straight from the payload. The webhook is **board-level** (one, on `TRELLO_BOARD_ID`),
   so unlike Asana `ExternalBoardCreated` *does* arrive (from `createList`).
+- **OAuth2 arrives with Basecamp (in progress, issue #27 — single-tenant first).**
+  Basecamp 4 is the first OAuth2 provider, picked because it is OAuth2-*only* (the forcing
+  function the `token` strategy never gave; ClickUp/Asana also offer static tokens, Trello
+  is OAuth 1.0a). It offers **only the authorization-code grant** (no client-credentials),
+  and its OAuth2 is **draft 5**: non-standard `type=web_server` param on the authorize/token
+  URLs, **no PKCE, no discovery**, 2-week access tokens + refresh. PKCE is moot — int1 is a
+  confidential server-side client. Shape: `/oauth/basecamp/{connect,callback}` run
+  redirect → consent → code-exchange (verify a `state` for CSRF); a new `oauth2` strategy
+  refreshes on expiry behind the same async `getAuthHeaders()` seam. **Clients/strategies
+  stay DB-free** — the handler loads the token and passes it **plus a persist hook** in (so
+  a mid-call refresh can be saved). **Single-tenant first, but store the token against the
+  connecting `IntegrationUser` keyed by `externalUserId` (the Basecamp identity), never as a
+  global blob** — then multi-tenant is additive (more rows), not a re-home. Config:
+  `BASECAMP_CLIENT_ID` + `BASECAMP_REDIRECT_URI` in `.env`, `BASECAMP_CLIENT_SECRET` in
+  Keychain; the per-connection tokens (access/refresh/expiry/account id) are domain state in
+  the DB, not config — see "Config homes" below.
 - **Config homes — there is no config.json.** Provider constants (BASE_URL) live in the
   client; per-environment values in `.env`; secrets in Keychain; future per-instance
   settings belong on the Integration row (e.g. a `settings` JSONB), not in a file.
