@@ -8,6 +8,7 @@ const integrationUserRoutes = require('./routes/integrationuser');
 const boardRoutes = require('./routes/board');
 const commentRoutes = require('./routes/comment');
 const webhookRoutes = require('./routes/webhook');
+const oauthRoutes = require('./routes/oauth');
 
 const app = express();
 
@@ -22,6 +23,7 @@ app.use('/login-users', loginUserRoutes);
 app.use('/integration-users', integrationUserRoutes);
 app.use('/boards', boardRoutes);
 app.use('/tasks', commentRoutes);
+app.use('/oauth', oauthRoutes);
 
 app.use((err, req, res, next) => {
   if (err.type === 'entity.parse.failed') {
