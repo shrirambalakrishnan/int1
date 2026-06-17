@@ -70,7 +70,7 @@ describe('OAuth2AuthStrategy', () => {
     assert.strictEqual(persisted[0].refreshToken, 'rotated');
   });
 
-  it('does not refresh again once renewed', async () => {
+  it('caches the renewed token so a second call does not hit the network', async () => {
     let refreshCount = 0;
     const strategy = new OAuth2AuthStrategy(
       base({
