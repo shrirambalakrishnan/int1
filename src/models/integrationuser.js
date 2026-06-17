@@ -16,6 +16,14 @@ module.exports = (sequelize, DataTypes) => {
         foreignKey: 'loginUserId',
         as: 'loginUser',
       });
+      // 1:1 OAuth token set (issue #27). Cascade in the JS layer as well as the
+      // DB FK so instance.destroy() cleans up the tokens via hooks.
+      IntegrationUser.hasOne(models.IntegrationUserOAuthData, {
+        foreignKey: 'integrationUserId',
+        as: 'oauthData',
+        onDelete: 'CASCADE',
+        hooks: true,
+      });
     }
   }
   IntegrationUser.init(

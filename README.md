@@ -57,7 +57,8 @@ How a local change reaches the external tool:
 
 Authentication is pluggable per provider via strategies (`src/integration/auth/`),
 resolved through `selectAuthStrategy`. The first strategy is `token` (static API
-token); OAuth can be added later without touching clients' call sites.
+token); a second, `oauth2`, is being added for Basecamp (issue #27) without touching
+clients' call sites.
 
 Guard behavior in handlers:
 
@@ -366,6 +367,34 @@ npm run webhook:trello:register -- https://<public-host>/webhooks/trello
   [trello.com/power-ups/admin](https://trello.com/power-ups/admin)), and export it
   before restarting `npm start`.
 
+### Basecamp (OAuth2 — in progress, issue #27)
+
+Basecamp 4 (the BC3 API) is the first provider authenticated with **OAuth2** instead of
+a static token — chosen precisely because it is **OAuth2-only** (Basic auth was removed),
+so it forces the OAuth path the `token` strategy never exercised. The `oauth2` strategy,
+the `/oauth/basecamp/*` routes, token storage, and the client are being built under issue
+#27; this section documents the app setup that is already in place.
+
+- **Auth**: OAuth2 **authorization-code** flow — the only grant Basecamp offers (there is
+  no client-credentials / app-only option, so a human consents at least once). Register an
+  app at [launchpad.37signals.com/integrations](https://launchpad.37signals.com/integrations)
+  to get a **Client ID** and **Client Secret**, with the redirect URI pointing at the
+  callback route. Basecamp predates the final spec (OAuth2 **draft 5**): the authorize and
+  token URLs take a non-standard `type=web_server` param, there is **no PKCE** and **no
+  discovery document**, and access tokens **expire after 2 weeks** with a refresh token to
+  renew them. PKCE isn't needed here — int1 is a confidential server-side client, so the
+  client secret (kept server-side) is the protection PKCE would otherwise provide.
+- **Config homes** (all three set up already):
+  - `BASECAMP_CLIENT_ID` — non-secret → `.env`
+  - `BASECAMP_REDIRECT_URI` — non-secret → `.env`
+    (e.g. `http://localhost:3000/oauth/basecamp/callback`; the OAuth redirect is
+    **browser-driven**, so localhost works without a tunnel — unlike the webhooks above)
+  - `BASECAMP_CLIENT_SECRET` — secret → **Keychain** (see Secrets below)
+- **Tokens are not config.** The per-connection access token, refresh token, expiry, and
+  Basecamp account id are **domain state**, stored in the database against the connecting
+  `IntegrationUser` — single-tenant first (one connected actor), keyed per-actor so growing
+  to multi-tenant is additive (more rows) rather than a re-home.
+
 ## Secrets
 
 Secrets (API tokens, passwords, keys) are **never stored in `.env` or any file in the
@@ -427,3 +456,4 @@ the value came from the Keychain.
 | `CLICKUP_WEBHOOK_SECRET`   | HMAC secret for verifying inbound ClickUp webhooks (printed by `npm run webhook:clickup:register`) |
 | `ASANA_WEBHOOK_SECRET`     | HMAC secret for verifying inbound Asana webhooks (delivered via handshake — printed in the server logs during `npm run webhook:asana:register`) |
 | `TRELLO_API_SECRET`        | Trello app secret (OAuth secret) for verifying inbound Trello webhooks (`X-Trello-Webhook`); pre-existing app credential from [trello.com/power-ups/admin](https://trello.com/power-ups/admin), *not* printed by a register script |
+| `BASECAMP_CLIENT_SECRET`   | Basecamp 4 OAuth2 client secret for the Basecamp integration's authorization-code flow; app credential from [launchpad.37signals.com/integrations](https://launchpad.37signals.com/integrations) (`BASECAMP_CLIENT_ID` and `BASECAMP_REDIRECT_URI` are non-secret → `.env`) |
