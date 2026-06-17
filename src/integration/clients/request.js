@@ -19,10 +19,16 @@
  *   wrapBody(body)    optional request envelope (Asana's { data })
  *   unwrapResponse(json)
  *                     optional response envelope
+ *   defaultHeaders    optional static headers sent on every request (Basecamp's
+ *                     required User-Agent); auth headers still win on a clash
  *
  * Bodies are read once as text with JSON.parse attempted on top — some
  * providers (Trello) send plain-text errors, and the superset behavior is
  * harmless for the JSON-only ones.
+ *
+ * This descriptor is at its 8-key cap (the hook-creep guardrail in CLAUDE.md):
+ * the next provider that needs another knob writes its own private request()
+ * rather than growing this one.
  */
 
 const identity = (value) => value;
@@ -35,6 +41,7 @@ function createRequest({
   errorMessage,
   wrapBody = identity,
   unwrapResponse = identity,
+  defaultHeaders = {},
 }) {
   return async function request(method, path, body) {
     const auth = authStrategy();
@@ -44,6 +51,7 @@ function createRequest({
         method,
         headers: {
           'Content-Type': 'application/json',
+          ...defaultHeaders,
           ...(await auth.getAuthHeaders()),
         },
         body: body === undefined ? undefined : JSON.stringify(wrapBody(body)),

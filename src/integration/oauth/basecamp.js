@@ -75,6 +75,38 @@ async function exchangeCodeForTokens({ code, clientId, clientSecret, redirectUri
 }
 
 /**
+ * Refresh an expired access token (issue #38). Basecamp's draft-5 refresh is
+ * the same non-standard shape as the initial exchange: `type=refresh` plus all
+ * params in the query string of a bodyless POST. Basecamp does NOT rotate the
+ * refresh token — the response carries a new access_token + expires_in only, so
+ * the caller keeps reusing the existing refresh_token.
+ *
+ * Returns { accessToken, expiresIn (seconds) }; the OAuth2 strategy turns
+ * expiresIn into an absolute expiresAt before persisting.
+ */
+async function refreshTokens({ refreshToken, clientId, clientSecret }) {
+  const url = new URL(TOKEN_URL);
+  url.searchParams.set('type', 'refresh');
+  url.searchParams.set('refresh_token', refreshToken);
+  url.searchParams.set('client_id', clientId);
+  url.searchParams.set('client_secret', clientSecret);
+
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: { 'User-Agent': USER_AGENT },
+  });
+  const text = await res.text();
+  if (!res.ok) {
+    throw new Error(`[basecampOAuth] token refresh failed (${res.status}): ${text}`);
+  }
+  const data = JSON.parse(text);
+  return {
+    accessToken: data.access_token,
+    expiresIn: data.expires_in, // seconds
+  };
+}
+
+/**
  * Step 3: find out who/what the freshly minted token belongs to. The token
  * endpoint returns only the tokens, so identity + account come from a separate
  * authenticated call. Returns the normalized pieces we persist:
@@ -122,7 +154,9 @@ module.exports = {
   AUTHORIZE_URL,
   TOKEN_URL,
   IDENTITY_URL,
+  USER_AGENT,
   buildAuthorizeUrl,
   exchangeCodeForTokens,
+  refreshTokens,
   fetchIdentity,
 };
