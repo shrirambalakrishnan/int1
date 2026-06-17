@@ -1,6 +1,7 @@
 'use strict';
 
 const { TokenAuthStrategy } = require('./tokenAuthStrategy');
+const { OAuth2AuthStrategy } = require('./oauth2AuthStrategy');
 
 /**
  * Resolves a strategy name to a constructed auth strategy. This is the single
@@ -8,11 +9,12 @@ const { TokenAuthStrategy } = require('./tokenAuthStrategy');
  * selectIntegration does for clients.
  *
  * Each integration client picks its strategy here at construction time
- * ('token' for ClickUp). When a provider needs OAuth this grows by one entry;
- * call sites stay the same.
+ * ('token' for ClickUp/Asana/Trello, 'oauth2' for Basecamp). Adding a provider
+ * with a new auth kind grows this by one entry; call sites stay the same.
  */
 const strategies = {
   token: (options) => new TokenAuthStrategy(options),
+  oauth2: (options) => new OAuth2AuthStrategy(options),
 };
 
 function selectAuthStrategy(name, options) {

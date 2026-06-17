@@ -100,10 +100,11 @@ README "Secrets" section.
   opt-in — the client contract is only the six methods (stubClient has no `request()` at
   all). A new provider may add at most ONE new hook, and only optional + defaulted to
   current behavior so existing clients and their tests are untouched. Hard cap: the
-  descriptor stays ≤ 8 keys total (now 7). A provider needing more than one new hook, or
-  breaching the cap, writes its own private `request()` instead — never bend the core
-  around one weird API; ten providers each adding "just one hook" is how a helper becomes
-  a framework. The 429 sleep-and-retry-once is scaffolding —
+  descriptor stays ≤ 8 keys total (**now 8 — at the cap**: Basecamp's issue-#38 client
+  spent the last slot on `defaultHeaders`, the static per-request headers its required
+  `User-Agent` needs). A provider needing more than one new hook, or breaching the cap,
+  writes its own private `request()` instead — never bend the core around one weird API;
+  ten providers each adding "just one hook" is how a helper becomes a framework. The 429 sleep-and-retry-once is scaffolding —
   when a broker fronts the worker delete it from the core (throw → nack → delayed
   redelivery), with a client-side throttle below the provider limit and a cron reconciler
   on top (`integrationUpdatedAt` + null-external-id columns are designed for that sweep).
@@ -155,20 +156,34 @@ README "Secrets" section.
   but the translator still fetches the entity for completeness while reading the actor
   straight from the payload. The webhook is **board-level** (one, on `TRELLO_BOARD_ID`),
   so unlike Asana `ExternalBoardCreated` *does* arrive (from `createList`).
-- **OAuth2 arrives with Basecamp (in progress, issue #27 — single-tenant first).**
+- **OAuth2 arrives with Basecamp (issue #27 auth + token storage, issue #38 outbound sync — single-tenant first).**
   Basecamp 4 is the first OAuth2 provider, picked because it is OAuth2-*only* (the forcing
   function the `token` strategy never gave; ClickUp/Asana also offer static tokens, Trello
   is OAuth 1.0a). It offers **only the authorization-code grant** (no client-credentials),
   and its OAuth2 is **draft 5**: non-standard `type=web_server` param on the authorize/token
-  URLs, **no PKCE, no discovery**, 2-week access tokens + refresh. PKCE is moot — int1 is a
-  confidential server-side client. Shape: `/oauth/basecamp/{connect,callback}` run
-  redirect → consent → code-exchange (verify a `state` for CSRF); a new `oauth2` strategy
-  refreshes on expiry behind the same async `getAuthHeaders()` seam. **Clients/strategies
-  stay DB-free** — the handler loads the token and passes it **plus a persist hook** in (so
-  a mid-call refresh can be saved). **Single-tenant first, but store the token against the
-  connecting `IntegrationUser` keyed by `externalUserId` (the Basecamp identity), never as a
-  global blob** — then multi-tenant is additive (more rows), not a re-home. Config:
-  `BASECAMP_CLIENT_ID` + `BASECAMP_REDIRECT_URI` in `.env`, `BASECAMP_CLIENT_SECRET` in
+  URLs, **no PKCE, no discovery**, 2-week access tokens + refresh (refresh token is **not**
+  rotated). PKCE is moot — int1 is a confidential server-side client. Shape:
+  `/oauth/basecamp/{connect,callback}` run redirect → consent → code-exchange (verify a
+  `state` for CSRF); the `oauth2` strategy (`auth/oauth2AuthStrategy.js`) refreshes
+  proactively on expiry behind the same async `getAuthHeaders()` seam (reactive 401-refresh
+  is a follow-up — the request core only retries 429 today). **Clients/strategies stay
+  DB-free** — the strategy is handed the current tokens plus `refresh`/`persist` closures,
+  and a *caller* loads the token + builds those closures (so a mid-call refresh is saved).
+  **That caller is `resolveBasecampClient` at the `selectIntegration` seam, not the handler**
+  (issue #38, "Option A"): Basecamp's client is **connection-bound** (account-scoped base
+  URL `https://3.basecampapi.com/{accountId}` + per-user DB token), so it can't be a static
+  singleton in the `selectIntegration` registry — `selectIntegration` special-cases
+  `basecamp` and builds the client per call. This keeps handlers and the six-method contract
+  provider-agnostic (pushing the token-load into the handler would make every handler
+  OAuth-aware). **Single-tenant first, but store the token against the connecting
+  `IntegrationUser` keyed by `externalUserId` (the Basecamp identity), never as a global
+  blob** — then multi-tenant is additive (more rows: `resolveBasecampClient` throws on >1
+  connection today rather than guessing an actor). **Resource mapping** mirrors ClickUp:
+  pinned Project (`BASECAMP_PROJECT_ID`) → to-do set (resolved from the project dock, or
+  pinned via `BASECAMP_TODOSET_ID`) → Board=to-do list → Task=to-do → Comment=comment.
+  Quirk: Basecamp's **PUT clears omitted fields**, so `updateTask` always resends
+  `content`+`description` (unlike ClickUp/Asana partial PUT). Config: `BASECAMP_CLIENT_ID` +
+  `BASECAMP_REDIRECT_URI` + `BASECAMP_PROJECT_ID` in `.env`, `BASECAMP_CLIENT_SECRET` in
   Keychain; the per-connection tokens (access/refresh/expiry/account id) are domain state in
   the DB, not config — see "Config homes" below.
 - **Config homes — there is no config.json.** Provider constants (BASE_URL) live in the
