@@ -1,15 +1,20 @@
 # int1
 
 API-only service mirroring external integrations (Jira/Linear-style) into Postgres.
-Express 5 + Sequelize 6. No UI, no auth yet. Real providers are ClickUp, Asana and
-Trello (outbound push, all six events; all three also have inbound webhooks);
+Express 5 + Sequelize 6. No UI, no auth yet. Real providers are ClickUp, Asana,
+Trello and Basecamp (all four do outbound push, all six events; ClickUp, Asana and
+Trello also have inbound webhooks — Basecamp is outbound-only so far);
 everything else resolves to a stub client.
 Architecture is in the code/README — this file only captures what isn't obvious from
 reading the repo.
 
-**Docs are part of every feature.** When a feature lands, update the README in the
-same change (new provider → its own README section + secrets table row), and update
-this file if a decision or gotcha changed. Don't wait to be asked.
+**Docs are part of every feature.** When a feature lands, update the docs in the same
+change, and update this file if a decision or gotcha changed. Don't wait to be asked.
+The README is the portfolio-facing overview (architecture diagrams, engineering
+highlights, capability matrix, auth, secrets, scope/trade-offs) — keep it scannable; a
+**new provider gets its own `docs/providers/<name>.md`** for the deep reference (resource
+mapping, endpoints, webhook signature scheme, rate limits, registration), plus a row in
+the README capability matrix and a row in the README secrets table.
 
 ## Commands
 
