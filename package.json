@@ -2,8 +2,8 @@
   "name": "int1",
   "version": "0.0.1",
   "description": "",
-  "license": "ISC",
-  "author": "",
+  "license": "MIT",
+  "author": "Shriram Balakrishnan",
   "type": "commonjs",
   "main": "index.js",
   "scripts": {
