@@ -292,3 +292,10 @@ defined trigger to revisit (see [`DECISIONS.md`](DECISIONS.md)):
   - Currently the DB rows can track the state of sync
 - **Per-entity gaps**: assignee/user mapping, status sync, and delete propagation are
   deferred across providers.
+
+---
+
+## License
+
+Released under the [MIT License](LICENSE) — free to use, fork, and learn from, with
+attribution.
