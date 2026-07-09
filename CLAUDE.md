@@ -73,17 +73,22 @@ README "Secrets" section.
   `events.exchange` (routing key per type, e.g. `boards.created`); the worker
   (`src/worker.js`, `npm run start:worker`) consumes `int1worker.queue` and calls
   `processEvent`. All broker wiring is in `src/rabbitMQ.js`, and topology is asserted
-  idempotently at startup by both processes (start order doesn't matter). **Phase 1 is
-  the happy path on purpose:** the consumer auto-acks (`noAck`, so a throw drops the
-  message) and publish-after-commit isn't transactional — manual ack/nack, DLQ,
-  retry/backoff, and publisher confirms are tracked follow-ups, and the publish/commit
-  gap leans on the reconciliation sweep (`integrationUpdatedAt` + null-external-id).
+  idempotently at startup by both processes (start order doesn't matter) — including the
+  dead-letter pair (`events.dlx` fanout → `int1worker.dlq`). **The worker manual-acks
+  (2026-06, issue #44):** on success it `ack`s; a thrown handler `nack`s (requeue:false)
+  so the broker dead-letters the message to `int1worker.dlq` instead of dropping it
+  (`prefetch(1)` bounds unacked work; the exception text is logged before nacking because
+  `x-death` doesn't carry it). Publish-after-commit still isn't transactional, and
+  retry/backoff, publisher confirms, and a DLQ-triage consumer remain tracked follow-ups —
+  the publish/commit gap leans on the reconciliation sweep (`integrationUpdatedAt` +
+  null-external-id).
   **Inbound webhooks still call `processEvent` inline** (the 500-as-retry below is
   unchanged) — putting them on the broker is a separate ticket.
 - **Guard semantics in handlers — two kinds, don't mix them up.** "Nothing to do"
   (missing entity, already integrated, Update before Create) → skip + warn. "Can't do it
-  *yet*" (Created event whose parent isn't integrated) → **throw**: loud today, becomes
-  broker redelivery later. Converting a throw to a skip silently loses the sync.
+  *yet*" (Created event whose parent isn't integrated) → **throw**: today the worker nacks
+  it to `int1worker.dlq` (retry/redelivery later). Converting a throw to a skip silently
+  loses the sync.
 - **Clients are DB-free.** Handlers load parents and pass them in (`createTask(task, board)`,
   `createComment(comment, task)`). Same principle in auth: strategies never read
   `process.env`; callers pass the token in.

@@ -4,6 +4,32 @@ Append-only log of significant design decisions. Newest first. Keep each entry
 brief (Context / Decision / Consequences). Don't edit past entries — to change a
 decision, add a new dated entry that supersedes the old one.
 
+## 2026-06-24 — Outbound worker: manual ack + broker-native dead-letter queue
+
+**Context:** The outbound worker consumed with `{ noAck: true }`, so a thrown
+`processEvent` (unknown type, schema failure, or a "can't do it *yet*" handler guard) was
+auto-acked and silently lost. Issue #44 needs those failures to survive somewhere durable
+so they can be triaged. Two ways to get them there: let the broker dead-letter on `nack`,
+or catch in the consumer and `publish` a copy to a DLQ ourselves.
+
+**Decision:** Broker-native dead-lettering. The worker switches to manual ack with
+`prefetch(1)`: `ack` on success, `nack(requeue:false)` on a throw. `int1worker.queue`
+carries `x-dead-letter-exchange: events.dlx` (a durable fanout) bound to a durable
+`int1worker.dlq`, so the broker routes rejected messages there with `x-death` metadata
+(count, reason, original routing key). Straight to the DLQ on the first failure — no
+retry/backoff yet. The exception text is `console.error`-logged before nacking because
+`x-death` does not carry it.
+
+**Consequences:** Failures accumulate in `int1worker.dlq` instead of vanishing, and the
+`nack` path is the seam the inbound 500-as-retry and the request core's 429 retry collapse
+into later. Queue arguments are immutable, so an existing `int1worker.queue` must be
+deleted once (`rabbitmqctl delete_queue int1worker.queue`) before startup can recreate it
+with the DLX arg. Trade-offs: a poison message dead-letters on the first failure (no
+retry), and the captured failure context is only the original event plus logs — a future
+DLQ-triage consumer re-derives "why" from live DB/provider state. Retry/backoff (e.g. a
+TTL retry queue dead-lettering back to the main queue) and publisher confirms remain
+follow-ups.
+
 ## 2026-06-12 — Inbound webhooks reuse the event seam; provider retry is the redelivery
 
 **Context:** First inbound sync (ClickUp webhooks → canonical models). The outbound

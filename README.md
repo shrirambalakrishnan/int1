@@ -47,6 +47,7 @@ flowchart LR
         pg[("Postgres<br/>canonical model")]
     end
     mq{{"RabbitMQ<br/>events.exchange → int1worker.queue"}}
+    dlq{{"events.dlx → int1worker.dlq<br/>(dead letters)"}}
     prov["Providers<br/>ClickUp · Asana · Trello · Basecamp"]
 
     client -->|REST| api
@@ -55,6 +56,7 @@ flowchart LR
     mq -->|consume| worker
     worker -->|persist external ids| pg
     worker -->|"push: create / update"| prov
+    worker -.->|"nack on failure"| dlq
     prov -.->|"webhooks (inbound)"| api
 ```
 
@@ -123,6 +125,7 @@ sequenceDiagram
     H->>P: createBoard (selectIntegration → client)
     P-->>H: external id
     H->>DB: save integrationBoardId
+    W-->>MQ: ack (nack → int1worker.dlq on failure)
 ```
 
 The `npm run emit:*` scripts call `processEvent` directly as a broker-free way to drive a
@@ -218,8 +221,9 @@ npm run start:worker  # worker (separate shell) — consumes int1worker.queue �
 npm test              # unit tests (node --test)
 ```
 
-The broker topology (exchange, queue, bindings) is asserted idempotently at startup by
-**both** processes, so start order doesn't matter. Any command that actually talks to a
+The broker topology (the events exchange and worker queue, plus the `events.dlx` →
+`int1worker.dlq` dead-letter pair, and their bindings) is asserted idempotently at startup
+by **both** processes, so start order doesn't matter. Any command that actually talks to a
 provider also needs that provider's secret exported first — see below.
 
 Copy `.env.example` to `.env` for the non-secret config (DB connection, `RABBITMQ_URL`,
@@ -275,12 +279,12 @@ relevant [provider doc](docs/providers/).
 What's deliberately _not_ built yet, and why — the boundaries are intentional, each with a
 defined trigger to revisit (see [`DECISIONS.md`](DECISIONS.md)):
 
-- **Outbound flow handles only the happy path on purpose.**
-  - The worker auto-acks, so a handler throw currently drops the message
-    - Planned solution
-      - manual ack/nack
-      - retry/backoff
-      - dead-letter queue
+- **Outbound failures dead-letter; retry/backoff is still deferred.**
+  - The worker manual-acks: a handler throw nacks the message (no requeue) and the broker routes it to `int1worker.dlq` via `events.dlx`, so failures are captured for triage instead of dropped
+    - Planned next
+      - retry/backoff before dead-lettering
+      - publisher confirms
+      - a step that consumes and triages the DLQ
   - Publish happens after the DB commit and isn't transactional, so a broker outage can persist a row whose event never published;
     - Planned solution
       - reconciliation of all entities with null-external-id columns

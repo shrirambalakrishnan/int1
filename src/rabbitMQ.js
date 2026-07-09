@@ -16,6 +16,10 @@ const RABBITMQ_ROUTING_KEY_COMMENT_UPDATED = 'comments.updated';
 ////////////////////////////////
 // queues
 const RABBITMQ_INT1_WORKER_QUEUE = 'int1worker.queue';
+// dead-letter exchange + queue: a handler throw nacks the message (requeue:false),
+// and the broker routes it here for later triage. See DECISIONS.md (2026-06-24).
+const RABBITMQ_EVENTS_DLX = 'events.dlx';
+const RABBITMQ_INT1_WORKER_DLQ = 'int1worker.dlq';
 
 let channel, connection;
 
@@ -41,7 +45,18 @@ async function initRabbitMQExchange(channel) {
     durable: true,
   });
 
-  await channel.assertQueue(RABBITMQ_INT1_WORKER_QUEUE, { durable: true });
+  // Dead-letter exchange + queue. Messages the worker nacks (requeue:false) are
+  // routed here by the broker so failures are triaged instead of silently dropped.
+  await channel.assertExchange(RABBITMQ_EVENTS_DLX, 'fanout', { durable: true });
+  await channel.assertQueue(RABBITMQ_INT1_WORKER_DLQ, { durable: true });
+  await channel.bindQueue(RABBITMQ_INT1_WORKER_DLQ, RABBITMQ_EVENTS_DLX, '');
+
+  // Queue arguments are immutable: an int1worker.queue that already exists without
+  // this arg must be deleted once (see README) so startup can recreate it.
+  await channel.assertQueue(RABBITMQ_INT1_WORKER_QUEUE, {
+    durable: true,
+    arguments: { 'x-dead-letter-exchange': RABBITMQ_EVENTS_DLX },
+  });
   await channel.bindQueue(
     RABBITMQ_INT1_WORKER_QUEUE,
     RABBITMQ_EVENTS_EXCHANGE,
@@ -91,15 +106,25 @@ async function publish(routingKey, event) {
 
 async function consume(handler) {
   const channel = await getChannel();
+  // Manual ack: hold one unacked message at a time, ack on success, and nack
+  // (no requeue) on a throw so the broker dead-letters it to events.dlx.
+  await channel.prefetch(1);
   await channel.consume(
     RABBITMQ_INT1_WORKER_QUEUE,
     async (msg) => {
       if (msg == null) return;
 
-      const event = JSON.parse(msg.content.toString());
-      await handler(event);
+      try {
+        const event = JSON.parse(msg.content.toString());
+        await handler(event);
+        channel.ack(msg);
+      } catch (err) {
+        // x-death does not carry the exception text, so log it before nacking.
+        console.error('[worker] event processing failed, dead-lettering:', err);
+        channel.nack(msg, false, false);
+      }
     },
-    { noAck: true }
+    { noAck: false }
   );
 }
 
