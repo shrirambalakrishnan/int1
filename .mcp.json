@@ -2,7 +2,10 @@
   "mcpServers": {
     "int1": {
       "type": "http",
-      "url": "http://127.0.0.1:3100/mcp"
+      "url": "http://127.0.0.1:3100/mcp",
+      "headers": {
+        "Authorization": "Bearer ${INT1_MCP_AUTH_KEY}"
+      }
     }
   }
 }
