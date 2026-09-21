@@ -74,6 +74,69 @@ function buildMcpServer(int1Url) {
     }
   );
 
+  server.registerTool(
+    'create_board',
+    {
+      title: 'Create a board in int1',
+      description:
+        'Create board in int1. It is synced to the provider of given integration. Get integrationId from list_integrations.',
+      inputSchema: {
+        name: z.string().min(1).describe('board name'),
+        integrationId: z.number().int().describe('int1 integration id'),
+      },
+      annotations: { destructiveHint: false, openWorldHint: true },
+    },
+    async ({ name, integrationId }) => {
+      try {
+        const res = await fetch(`${int1Url}/boards`, {
+          method: 'POST',
+          headers: { 'Content-type': 'application/json' },
+          body: JSON.stringify({ name, integrationId }),
+        });
+        const text = await res.text();
+
+        return { isError: !res.ok, content: [{ type: 'text', text }] };
+      } catch (err) {
+        return {
+          isError: true,
+          content: [{ type: 'text', text: err.message }],
+        };
+      }
+    }
+  );
+
+  server.registerTool(
+    'create_task',
+    {
+      title: 'Create task',
+      description:
+        'Create a task in a board. It is synced to board provider. Get boardId from list_boards',
+      inputSchema: {
+        boardId: z.number().int().describe('int1 board id'),
+        title: z.string().min(1).describe('task title'),
+        description: z.string().optional().describe('task description'),
+      },
+      annotations: { destructiveHint: false, openWorldHint: true },
+    },
+    async ({ boardId, title, description }) => {
+      try {
+        const res = await fetch(`${int1Url}/boards/${boardId}/tasks`, {
+          method: 'POST',
+          headers: { 'Content-type': 'application/json' },
+          body: JSON.stringify({ title, description }),
+        });
+        const text = await res.text();
+
+        return { isError: !res.ok, content: [{ type: 'text', text }] };
+      } catch (err) {
+        return {
+          isError: true,
+          content: [{ type: 'text', text: err.message }],
+        };
+      }
+    }
+  );
+
   return server;
 }
 
