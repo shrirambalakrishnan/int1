@@ -18,19 +18,22 @@
     "emit:comment:updated": "node scripts/emitCommentUpdated.js",
     "webhook:clickup:register": "node scripts/registerClickupWebhook.js",
     "webhook:asana:register": "node scripts/registerAsanaWebhook.js",
-    "webhook:trello:register": "node scripts/registerTrelloWebhook.js"
+    "webhook:trello:register": "node scripts/registerTrelloWebhook.js",
+    "start:mcp": "node src/mcp/index.js"
   },
   "engines": {
     "node": ">=26.2.0",
     "npm": ">=11.13.0"
   },
   "dependencies": {
+    "@modelcontextprotocol/sdk": "1.30.0",
     "amqplib": "2.0.1",
     "dotenv": "17.4.2",
     "express": "5.2.1",
     "joi": "18.2.1",
     "pg": "8.21.0",
-    "sequelize": "6.37.8"
+    "sequelize": "6.37.8",
+    "zod": "4.6.5"
   },
   "devDependencies": {
     "prettier": "3.8.3",
